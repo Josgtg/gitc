@@ -11,8 +11,8 @@ impl Constants {
     pub const DEFAULT_HEAD: &'static str = "ref: refs/heads/main";
     pub const HEAD_NAME: &'static str = "HEAD";
     pub const INDEX_VERSION_NUMBER: u32 = 2;
-    pub const INDEX_HEADER_BINARY: &[u8] = b"DIRC";
-    pub const GITIGNORE_FILE: &'static str = ".gitignore";
+    pub const INDEX_HEADER_BINARY: u32 = u32::from_le_bytes(*b"DIRC");
+    pub const GITIGNORE_FILE_NAME: &'static str = ".gitignore";
 
     /// The root folder of the repository
     pub fn repository_folder_path() -> PathBuf {

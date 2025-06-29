@@ -3,6 +3,9 @@ use std::{ffi::OsString, io::Write};
 
 use byteorder::{BigEndian, WriteBytesExt};
 
+use crate::byteable::Byteable;
+use crate::Result;
+
 /// Represents a file stage, mainly related to a merge
 #[repr(u8)]
 #[derive(Debug)]
@@ -38,62 +41,42 @@ pub struct IndexEntry {
     path: OsString,
 }
 
-impl IndexEntry {
-    pub fn new(
-        creation_time_sec: u32,
-        creation_time_nsec: u32,
-        modification_time_sec: u32,
-        modification_time_nsec: u32,
-        device: u32,
-        inode: u32,
-        mode: u32,
-        uid: u32,
-        gid: u32,
-        file_size: u32,
-        object_hash: [u8; 20],
-        flags: u16,
-        path: OsString,
-    ) -> Self {
-        Self {
-            creation_time_sec,
-            creation_time_nsec,
-            modification_time_sec,
-            modification_time_nsec,
-            device,
-            inode,
-            mode,
-            uid,
-            gid,
-            file_size,
-            object_hash,
-            flags,
-            path,
-        }
-    }
+impl Byteable for IndexEntry {
 
-    pub fn to_bytes(&self) -> Vec<u8> {
+    fn as_bytes(&self) -> Result<Vec<u8>> {
         // 62 fixed bytes, variable path and null byte
         let data_len = 62 + self.path.len() + 1;
         let bytes: Vec<u8> = Vec::with_capacity(data_len);
 
         let mut cursor = Cursor::new(bytes);
 
-        cursor.write_u32::<BigEndian>(self.creation_time_sec).unwrap();
-        cursor.write_u32::<BigEndian>(self.creation_time_nsec).unwrap();
-        cursor.write_u32::<BigEndian>(self.modification_time_sec).unwrap();
-        cursor.write_u32::<BigEndian>(self.modification_time_nsec).unwrap();
-        cursor.write_u32::<BigEndian>(self.device).unwrap();
-        cursor.write_u32::<BigEndian>(self.inode).unwrap();
-        cursor.write_u32::<BigEndian>(self.mode).unwrap();
-        cursor.write_u32::<BigEndian>(self.uid).unwrap();
-        cursor.write_u32::<BigEndian>(self.gid).unwrap();
-        cursor.write_u32::<BigEndian>(self.file_size).unwrap();
-        cursor.write_all(&self.object_hash).unwrap();
-        cursor.write_u16::<BigEndian>(self.flags).unwrap();
+        cursor.write_u32::<BigEndian>(self.creation_time_sec)?;
+        cursor.write_u32::<BigEndian>(self.creation_time_nsec)?;
+        cursor.write_u32::<BigEndian>(self.modification_time_sec)?;
+        cursor.write_u32::<BigEndian>(self.modification_time_nsec)?;
+        cursor.write_u32::<BigEndian>(self.device)?;
+        cursor.write_u32::<BigEndian>(self.inode)?;
+        cursor.write_u32::<BigEndian>(self.mode)?;
+        cursor.write_u32::<BigEndian>(self.uid)?;
+        cursor.write_u32::<BigEndian>(self.gid)?;
+        cursor.write_u32::<BigEndian>(self.file_size)?;
+        cursor.write_all(&self.object_hash)?;
+        cursor.write_u16::<BigEndian>(self.flags)?;
 
-        cursor.write_all(self.path.as_encoded_bytes()).unwrap();
-        cursor.write_u8(b'\0').unwrap();
+        cursor.write_all(self.path.as_encoded_bytes())?;
+        cursor.write_u8(b'\0')?;
 
-        cursor.into_inner()
+        Ok(cursor.into_inner())
+    }
+
+    /// Parses a set of bytes into an `IndexEntry` struct.
+    ///
+    /// # Errors
+    ///
+    /// This function will fail if:
+    /// - There was an error reading from the bytes.
+    /// - The format of the bytes was not the expected one.
+    fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        todo!()
     }
 }

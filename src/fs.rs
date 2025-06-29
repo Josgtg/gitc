@@ -1,29 +1,119 @@
+use std::collections::HashSet;
+use std::ffi::OsStr;
+use std::ffi::OsString;
+use std::fs::File;
+use std::io::BufRead;
+use std::io::BufReader;
 use std::path::Path;
-use std::fs::{self, File};
+use std::path::PathBuf;
 
 use crate::Constants;
 use crate::Result;
 
-/// Returns true if the path returned by `Constants::repository_folder_path` exists.
+/// Reads a .gitignore file inside of `path`, returning a HashSet including all the files listed (read by line).
+///
+/// This function will skip files in the gitignore that have text that could not be interpreted as a `String`.
 ///
 /// # Errors
 ///
-/// This function will panic if `std::fs::exists` returns an Err.
-pub fn repository_exists() -> bool {
-    fs::exists(Constants::repository_folder_path()).unwrap()
+/// This function will fail if the .gitignore file could not been opened.
+pub fn read_gitignore(path: &Path) -> Result<HashSet<PathBuf>> {
+    let mut set = HashSet::new();
+    // always adding repository path as a path to ignore no matter what
+    set.insert(Constants::REPOSITORY_FOLDER_NAME);
+
+    let gitignore_path = path.join(Constants::GITIGNORE_FILE_NAME);
+    if !std::fs::exists(&gitignore_path)? {
+        return Ok(set)
+    }
+
+    let gitignore = File::open(gitignore_path)?;
+
+    let reader = BufReader::new(gitignore);
+    for line in reader.lines().filter_map(|l| l.ok()) {
+        set.insert(PathBuf::from(line));
+    }
+
+    Ok(set)
 }
 
-/// Creates a folder through the `std::fs::create_dir_all` function.
-pub fn create_folder(path: &Path) -> Result<()> {
-    Ok(fs::create_dir_all(path)?)
+/// Returns `path` relative to `base`.
+///
+/// # Errors
+///
+/// This function will return `None` if `base` was not a prefix of `path`.
+pub fn relative_path(path: &Path, base: &Path) -> Option<PathBuf> {
+    path.strip_prefix(base).map(|p| PathBuf::from(p)).ok()
 }
 
-/// Creates a file through the `std::fs::File::create` function, returning the created file.
-pub fn create_file(path: &Path) -> Result<File> {
-    Ok(fs::File::create(path)?)
+/// Returns the path divided by forward slashes.
+pub fn format_path(path: &Path) -> OsString {
+    let mut formatted = OsString::new();
+    let mut prev: &OsStr = OsStr::new("");
+    for (i, p) in path.iter().enumerate() {
+        if i != 0 && prev != "/" {
+            // doing this to avoid placing a forward slash at the end or when the path before is a
+            // forward slash
+            formatted.push("/");
+        }
+        formatted.push(p);
+        prev = p;
+    }
+    formatted.into()
 }
 
-/// Reads a file trough the `std::fs::read` function, returning the bytes of the read file.
-pub fn read_file(path: &Path) -> Result<Vec<u8>> {
-    Ok(fs::read(path)?)
+/// Returns all the paths of the files and subdirectories inside of `dir`.
+///
+/// # Errors
+///
+/// This function will fail if:
+/// `dir` did not exist.
+/// `dir` was not a directory.
+/// Could not get the files inside of `dir`.
+pub fn read_dir_paths(dir: &Path) -> Result<Vec<PathBuf>> {
+    let mut paths = Vec::new();
+    let entries = std::fs::read_dir(dir)?;
+    for e in entries {
+        paths.push(e?.path());
+    }
+    Ok(paths)
+}
+
+
+
+// Tests
+
+#[cfg(test)]
+mod tests {
+    use std::{env, path::PathBuf};
+
+    use crate::fs::{format_path, relative_path};
+
+    #[test]
+    pub fn relative_path_test() {
+        let path = PathBuf::from(".git/index");
+        let base = env::current_dir().unwrap();
+        let joined = base.join(&path);
+
+        assert_eq!(path, relative_path(&joined, &base).unwrap());
+
+        let base2 = PathBuf::from("/home/juano/");
+
+        assert!(relative_path(&joined, &base2).is_none());
+
+        assert!(relative_path(&PathBuf::new(), &PathBuf::new()).is_some())
+    }
+
+    #[test]
+    pub fn format_path_test() {
+        let mut path = PathBuf::new();
+        path.push("/");
+        path.push("home");
+        path.push("josgtg");
+        path.push("games");
+        path.push("game.exe");
+        let objective = "/home/josgtg/games/game.exe";
+        
+        assert_eq!(objective, format_path(&path))
+    }
 }

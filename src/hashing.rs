@@ -7,6 +7,10 @@ pub fn hash(data: &[u8]) -> Vec<u8> {
     hasher.finalize().to_vec()
 }
 
+
+
+// Tests
+
 #[cfg(test)]
 mod tests {
     use crate::hashing::hash;

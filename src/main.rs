@@ -4,9 +4,11 @@ mod args;
 mod commands;
 mod constants;
 mod error;
-mod fs;
 mod index;
 mod hashing;
+mod object;
+mod byteable;
+mod fs;
 
 use clap::Parser;
 pub use constants::*;
