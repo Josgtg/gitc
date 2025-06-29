@@ -20,7 +20,7 @@ pub enum Error {
     #[error("error working with time")]
     SystemTime(#[from] std::time::SystemTimeError),
     #[error("error stripping prefix from a file")]
-    StripPrefix(#[from] std::path::StripPrefixError)
+    StripPrefix(#[from] std::path::StripPrefixError),
 }
 
 /// Abstraction of the result type where the error is always an Error from this crate.

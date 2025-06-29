@@ -1,27 +1,25 @@
-use std::io::Cursor;
-use std::io::Write;
+use std::io::{Cursor, Write};
+use std::rc::Rc;
 
-use byteorder::BigEndian;
-use byteorder::WriteBytesExt;
+use byteorder::{BigEndian, WriteBytesExt};
 
 use crate::byteable::Byteable;
 use crate::hashing;
 use crate::{Constants, Result};
 
-use super::ExtensionEntry;
-use super::IndexEntry;
+use super::{ExtensionEntry, IndexEntry};
 
 pub struct Index {
-    version_number: u32,
-    entries_number: u32,
-    entries: Vec<IndexEntry>,
-    extensions: Vec<ExtensionEntry>,
+    pub(super) version_number: u32,
+    pub(super) entries_number: u32,
+    pub(super) entries: Rc<[IndexEntry]>,
+    pub(super) extensions: Rc<[ExtensionEntry]>,
 }
 
 impl Byteable for Index {
 
     /// Returns a binary representation of this index.
-    fn as_bytes(&self) -> Result<Vec<u8>> {
+    fn as_bytes(&self) -> Result<Rc<[u8]>> {
         let bytes = Vec::with_capacity(32);
 
         let mut cursor = Cursor::new(bytes);
@@ -31,7 +29,7 @@ impl Byteable for Index {
         cursor.write_u32::<BigEndian>(self.entries_number)?;
 
         let mut current_len: usize = 12;  // 12 from the 3 bytes above
-        let mut entry_data: Vec<u8>;
+        let mut entry_data: Rc<[u8]>;
         let mut offset: usize;
         for e in self.entries.iter() {
             // unwrapping for debugging reasons
@@ -51,9 +49,9 @@ impl Byteable for Index {
 
         // assigning checksum from previous data
         let checksum = hashing::hash(cursor.get_ref());
-        cursor.write_all(&checksum)?;
+        cursor.write_all(checksum.as_ref())?;
 
-        Ok(cursor.into_inner())
+        Ok(cursor.into_inner().into())
     }
 
     /// Parses a set of bytes into an `Index` struct.
