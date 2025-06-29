@@ -33,7 +33,7 @@ impl TryFrom<&str> for ObjectType {
             ObjectType::BLOB_STRING => Ok(ObjectType::Blob),
             ObjectType::TREE_STRING => Ok(ObjectType::Tree),
             ObjectType::COMMIT_STRING => Ok(ObjectType::Commit),
-            _ => Err(Error::Generic("provided value does not match any object type"))
+            _ => Err(Error::Generic("provided value does not match any object type".into()))
         }
     }
 }
