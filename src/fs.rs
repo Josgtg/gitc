@@ -18,9 +18,9 @@ use crate::Result;
 ///
 /// This function will fail if the .gitignore file could not been opened.
 pub fn read_gitignore(path: &Path) -> Result<HashSet<PathBuf>> {
-    let mut set = HashSet::new();
+    let mut set: HashSet<PathBuf> = HashSet::new();
     // always adding repository path as a path to ignore no matter what
-    set.insert(Constants::REPOSITORY_FOLDER_NAME);
+    set.insert(PathBuf::from(Constants::REPOSITORY_FOLDER_NAME));
 
     let gitignore_path = path.join(Constants::GITIGNORE_FILE_NAME);
     if !std::fs::exists(&gitignore_path)? {
