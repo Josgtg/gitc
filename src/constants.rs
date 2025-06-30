@@ -20,7 +20,7 @@ impl Constants {
         let mut path: PathBuf = PathBuf::from(current_dir);
         #[cfg(debug_assertions)]
         {
-            path.push("test-repo");
+            // path.push("test-repo");
         }
         path
     }

@@ -1,3 +1,5 @@
+use std::slice::Iter;
+
 use crate::Constants;
 
 use super::{ExtensionEntry, Index, IndexEntry};
@@ -30,6 +32,10 @@ impl IndexBuilder {
 
     pub fn add_extension_entry(&mut self, entry: ExtensionEntry) {
         self.index.extensions.push(entry)
+    }
+
+    pub fn iter_index_entries(&self) -> Iter<IndexEntry> {
+        self.index.entries.iter()
     }
 }
 

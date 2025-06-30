@@ -38,7 +38,7 @@ impl Object {
             .as_bytes()
             .map_err_with("could not encode object when compressing")?;
 
-        let hash = Hash::from(bytes.as_ref());
+        let hash = Hash::hash_data(bytes.as_ref());
 
         let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
         encoder
@@ -101,7 +101,7 @@ impl Byteable for Object {
     // This function will fail if:
     // - The data could not be read.
     // - The data did not have a valid format.
-    fn from_bytes<R: BufRead>(cursor: &mut R) -> Result<Self> {
+    fn from_bytes<T: AsRef<[u8]>>(cursor: &mut Cursor<T>) -> Result<Self> {
         // reading type
         let mut kind_buf = Vec::new();
         // reading until space, before it there is the object type
@@ -164,7 +164,7 @@ impl TryFrom<File> for Object {
 
     fn try_from(mut file: File) -> Result<Self> {
         let mut buf = Vec::new();
-        file.read(&mut buf)
+        file.read_to_end(&mut buf)
             .map_err_with("failed to read from file when building object")?;
         Ok(Object {
             kind: ObjectType::Blob,

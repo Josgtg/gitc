@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::ffi::OsString;
 use std::path::PathBuf;
 
@@ -47,13 +48,24 @@ pub fn add(files: &[OsString]) -> Result<String> {
         objects.extend(add_dir(p).map_err_with("failed to add dir")?);
     }
 
+
+
     // updating index with the new files
     let previous_index = fs::index::read_index_file().map_err_with("could not read index file")?;
     let mut index_builder = IndexBuilder::from(previous_index);
+
+    let mut hashes_already_in_index: HashSet<Hash> = HashSet::new();
+    for h in index_builder.iter_index_entries().map(|o| o.object_hash()) {
+        hashes_already_in_index.insert(h);
+    }
+
     let mut index_entry: IndexEntry;
-    for o in objects {
-        index_entry = IndexEntry::try_from_file(&o.0, o.1)
-            .map_err_with(format!("could not create index entry from file: {:?}", o.0))?;
+    for (p, o) in objects {
+        index_entry = IndexEntry::try_from_file(&p, o)
+            .map_err_with(format!("could not create index entry from file: {:?}", p))?;
+        if hashes_already_in_index.contains(&index_entry.object_hash()) {
+            continue;
+        }
         index_builder.add_index_entry(index_entry);
     }
     let index = index_builder.build();

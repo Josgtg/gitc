@@ -25,6 +25,11 @@ pub fn write_to_object_dir(object: Object) -> Result<Hash> {
 
     fs::create_dir_all(folder_path)?;
 
+    // avoiding writing to an already existing file
+    if fs::exists(&file_path).map_err_with("could not check for object file existance when writing to object dir")? {
+        return Ok(hash)
+    }
+
     fs::write(&file_path, data).map_err_with(format!("could not write to object file: {file_path:?}"))?;
 
     Ok(hash)

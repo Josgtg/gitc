@@ -7,7 +7,14 @@ use crate::index::Index;
 use crate::{Constants, Result};
 
 pub fn read_index_file() -> Result<Index> {
-    let data = fs::read(Constants::index_path()).map_err_with("could not get data from file when reading from index file")?;
+    let index_path = Constants::index_path();
+
+    // returning empty index entry
+    if !fs::exists(&index_path).map_err_with("could not check index file existance")? {
+        return Ok(Index::default())
+    }
+
+    let data = fs::read(index_path).map_err_with("could not read index file data")?;
     let mut cursor = Cursor::new(data);
 
     let index = Index::from_bytes(&mut cursor).map_err_with("could not create index from index file's data")?;

@@ -1,4 +1,4 @@
-use std::io::{BufRead, Cursor, Write};
+use std::io::{Cursor, Read, Write};
 use std::rc::Rc;
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
@@ -10,7 +10,7 @@ use crate::{Constants, Error, Result};
 
 use super::{ExtensionEntry, IndexBuilder, IndexEntry};
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct Index {
     pub(super) version_number: u32,
     pub(super) entries_number: u32,
@@ -35,9 +35,7 @@ impl Byteable for Index {
             .write_u32::<BigEndian>(self.entries_number)
             .map_err_with("could not write entries_number when encoding index")?;
 
-        let mut current_len: usize = 12; // 12 from the 3 bytes above
         let mut entry_data: Rc<[u8]>;
-        let mut offset: usize;
         for e in self.entries.iter() {
             // unwrapping for debugging reasons
             entry_data = e
@@ -46,12 +44,6 @@ impl Byteable for Index {
             cursor
                 .write_all(&entry_data)
                 .map_err_with("could not write index entry encoded data when encoding index")?;
-
-            current_len += entry_data.len();
-            offset = 8 - ((8 % current_len) % 8);
-            for _ in 0..offset {
-                cursor.write_u8(0)?;
-            }
         }
 
         for _e in self.extensions.iter() {
@@ -59,7 +51,7 @@ impl Byteable for Index {
         }
 
         // assigning checksum from previous data
-        let checksum = Hash::from(cursor.get_ref());
+        let checksum = Hash::hash_data(cursor.get_ref());
         cursor
             .write_all(checksum.as_ref())
             .map_err_with("could not write checksum when encoding index")?;
@@ -74,7 +66,7 @@ impl Byteable for Index {
     /// This function will fail if:
     /// - There was an error reading from the bytes.
     /// - The format of the bytes was not the expected one.
-    fn from_bytes<R: BufRead>(cursor: &mut R) -> Result<Self> {
+    fn from_bytes<T: AsRef<[u8]>>(cursor: &mut Cursor<T>) -> Result<Self> {
         let mut builder = IndexBuilder::new();
 
         let dirc = cursor
@@ -105,18 +97,9 @@ impl Byteable for Index {
             .map_err_with("could not read entries_number when decoding index")?;
 
         let mut entry: IndexEntry;
-        let mut current_len: usize = 12;
-        let mut padding: usize;
         for _ in 0..entries_number {
             entry = IndexEntry::from_bytes(cursor)
                 .map_err_with("failed to build an index entry when decoding index")?;
-
-            current_len += entry.len();
-            padding = (8 - (current_len % 8)) % 8;
-            for _ in 0..padding {
-                cursor.read_u8()?;
-            }
-
             builder.add_index_entry(entry);
         }
 
@@ -138,5 +121,16 @@ impl Byteable for Index {
         }
 
         Ok(index)
+    }
+}
+
+impl Default for Index {
+    fn default() -> Self {
+        Index {
+            version_number: Constants::INDEX_VERSION_NUMBER,
+            entries_number: u32::default(),
+            entries: Vec::default(),
+            extensions: Vec::default(),
+        }
     }
 }

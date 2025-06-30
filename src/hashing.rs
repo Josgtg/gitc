@@ -1,21 +1,33 @@
 use sha1::{Digest, Sha1};
-use std::fmt::Display;
+use std::{fmt::Display, rc::Rc};
 
-#[derive(Debug, PartialEq)]
-pub struct Hash([u8; 20]);
+#[derive(Debug, PartialEq, Eq, std::hash::Hash, Clone)]
+pub struct Hash(Rc<[u8; 20]>);
 
 impl Hash {
     /// Returns the SHA1 hash for the data passed
-    pub fn from(value: &[u8]) -> Self { 
+    pub fn hash_data(value: &[u8]) -> Self { 
         let mut hasher = Sha1::new();
         hasher.update(value);
-        Hash(hasher.finalize().into())
+        Hash(Rc::new(hasher.finalize().into()))
+    }
+}
+
+impl From<[u8; 20]> for Hash {
+    fn from(value: [u8; 20]) -> Self {
+        Self(Rc::new(value))
+    }
+}
+
+impl From<&Rc<[u8; 20]>> for Hash {
+    fn from(value: &Rc<[u8; 20]>) -> Self {
+        Self(Rc::clone(value))
     }
 }
 
 impl Into<[u8; 20]> for Hash {
     fn into(self) -> [u8; 20] {
-        self.0
+        *self.0
     }
 }
 
@@ -28,7 +40,7 @@ impl Display for Hash {
 
 impl AsRef<[u8]> for Hash {
     fn as_ref(&self) -> &[u8] {
-        &self.0
+        self.0.as_ref()
     }
 }
 
@@ -42,12 +54,20 @@ mod tests {
     #[test]
     pub fn test_hashing() {
         let data = b"this is binary data";
-        let data_hash = Hash::from(data);
+        let data_hash = Hash::hash_data(data);
         let data2 = b"this is binary data";
-        let data2_hash = Hash::from(data2);
+        let data2_hash = Hash::hash_data(data2);
         assert_eq!(data_hash, data2_hash);
         let data3 = b"This is binary data";
-        let data3_hash = Hash::from(data3);
+        let data3_hash = Hash::hash_data(data3);
         assert_ne!(data_hash, data3_hash);
+    }
+
+    #[test]
+    pub fn test_no_change() {
+        let hash_bytes: [u8; 20] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+        let hash = Hash::from(hash_bytes);
+        let hash_bytes_changed: [u8; 20] = hash.into();
+        assert_eq!(hash_bytes, hash_bytes_changed);
     }
 }

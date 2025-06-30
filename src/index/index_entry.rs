@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{BufRead, Cursor};
+use std::io::{BufRead, Cursor, Read};
 use std::os::unix::ffi::OsStringExt;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
@@ -37,6 +37,11 @@ pub struct IndexEntry {
 }
 
 impl IndexEntry {
+
+    pub fn object_hash(&self) -> Hash {
+        Hash::from(self.object_hash)
+    }
+
     /// Tries to build an index entry from the file at `path` and the hash of the blob object for said file.
     ///
     /// # Errors
@@ -168,6 +173,11 @@ impl Byteable for IndexEntry {
         cursor.write_all(self.path.as_encoded_bytes()).map_err_with("could not write path when encoding index entry")?;
         cursor.write_u8(b'\0')?;
 
+        let padding = (8 - (cursor.get_ref().len() % 8)) % 8;
+        for _ in 0..padding {
+            cursor.write_u8(b'\0')?;
+        }
+
         Ok(cursor.into_inner().into())
     }
 
@@ -178,7 +188,7 @@ impl Byteable for IndexEntry {
     /// This function will fail if:
     /// - There was an error reading from the bytes.
     /// - The format of the bytes was not the expected one.
-    fn from_bytes<R: BufRead>(cursor: &mut R) -> Result<Self> {
+    fn from_bytes<T: AsRef<[u8]>>(cursor: &mut Cursor<T>) -> Result<Self> {
         let mut entry = IndexEntry::default();
 
         entry.creation_time_sec = cursor.read_u32::<BigEndian>().map_err_with("could not read creation_time_sec when decoding index entry")?;
@@ -207,7 +217,7 @@ impl Byteable for IndexEntry {
         {
             return Err(Error::DataConsistency(
                 format!(
-                    "index entry path length \"{}\" did not match actual path length \"{}\"",
+                    "index entry path length {:?} did not match actual path length {:?}",
                     entry.flag_path_len(),
                     path_buf.len()
                 )
@@ -216,6 +226,13 @@ impl Byteable for IndexEntry {
         }
 
         entry.path = OsString::from_vec(path_buf);
+
+        let offset = (8 - (entry.len() % 8)) % 8;
+        for _ in 0..offset {
+            cursor.read_u8()?;
+        }
+
+        dbg!(&entry);
 
         Ok(entry)
     }
