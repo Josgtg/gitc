@@ -92,10 +92,10 @@ mod tests {
     #[test]
     pub fn relative_path_test() {
         let path = PathBuf::from(".git/index");
-        let base = env::current_dir().unwrap();
+        let base = env::current_dir().expect("failed to get current dir");
         let joined = base.join(&path);
 
-        assert_eq!(path, relative_path(&joined, &base).unwrap());
+        assert_eq!(path, relative_path(&joined, &base).expect("failed to get relative path"));
 
         let base2 = PathBuf::from("/home/juano/");
 

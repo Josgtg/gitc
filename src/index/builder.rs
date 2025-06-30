@@ -1,9 +1,8 @@
-use std::rc::Rc;
-
 use crate::Constants;
 
 use super::{ExtensionEntry, Index, IndexEntry};
 
+#[derive(Debug, Default)]
 pub struct IndexBuilder {
     index: Index,
     entries: Vec<IndexEntry>,
@@ -14,16 +13,9 @@ impl IndexBuilder {
     
     /// Returns an `IndexBuilder` with a default index.
     pub fn new() -> Self {
-        Self {
-            index: Index {
-                version_number: Constants::INDEX_VERSION_NUMBER,
-                entries_number: 0,
-                entries: Rc::default(),
-                extensions: Rc::default(),
-            },
-            entries: Vec::new(),
-            extensions: Vec::new(),
-        }
+        let mut ib = Self::default();
+        ib.index.version_number = Constants::INDEX_VERSION_NUMBER;
+        ib
     }
 
     pub fn build(mut self) -> Index {

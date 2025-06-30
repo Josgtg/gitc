@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{BufRead, Cursor, Read};
+use std::io::{BufRead, Cursor};
 use std::os::unix::ffi::OsStringExt;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
@@ -10,8 +10,9 @@ use std::{ffi::OsString, io::Write};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::byteable::Byteable;
+use crate::fs::relative_path;
 use crate::hashing::Hash;
-use crate::{Error, Result};
+use crate::{Constants, Error, Result};
 
 /// Represents an entry for a file in the git index. It contains all the information needed to
 /// recreate a file.
@@ -35,7 +36,6 @@ pub struct IndexEntry {
 }
 
 impl IndexEntry {
-
     /// Tries to build an index entry from the file at `path` and the hash of the blob object for said file.
     ///
     /// # Errors
@@ -49,7 +49,8 @@ impl IndexEntry {
         Ok(IndexEntry {
             creation_time_sec: metadata.created()?.duration_since(UNIX_EPOCH)?.as_secs() as u32,
             creation_time_nsec: metadata.created()?.duration_since(UNIX_EPOCH)?.subsec_nanos() as u32,
-            modification_time_sec: metadata.modified()?.duration_since(UNIX_EPOCH)?.as_secs() as u32,
+            modification_time_sec: metadata.modified()?.duration_since(UNIX_EPOCH)?.as_secs()
+                as u32,
             modification_time_nsec: metadata.modified()?.duration_since(UNIX_EPOCH)?.subsec_nanos() as u32,
             device: metadata.dev() as u32,
             inode: metadata.ino() as u32,
@@ -59,7 +60,9 @@ impl IndexEntry {
             file_size: metadata.size() as u32,
             object_hash: object_hash.into(),
             flags: IndexEntry::default_flags(file_path.as_os_str().len()),
-            path: file_path.into()
+            path: relative_path(file_path, &Constants::repository_folder_path())
+                .unwrap_or(file_path.into())
+                .into(),
         })
     }
 
@@ -70,7 +73,7 @@ impl IndexEntry {
     }
 
     const ASSUME_VALID_FLAG_POSITION: u16 = 0b1011_1111_1111_1111;
-    const SKIP_WORKTREE_FLAG_POSITION: u16 = 0b1101_1111_1111_1111;     
+    const SKIP_WORKTREE_FLAG_POSITION: u16 = 0b1101_1111_1111_1111;
     const INTEND_TO_ADD_FLAG_POSITION: u16 = 0b1110_1111_1111_1111;
     const PATH_LEN_FLAG_POSITION: u16 = 0x0FFF;
     const MAX_PATH_LEN: u16 = 0x0FFF;
@@ -130,7 +133,6 @@ impl IndexEntry {
 }
 
 impl Byteable for IndexEntry {
-
     /// Reduces this index entry to a binary representation of itself.
     ///
     /// # Errors
@@ -184,17 +186,26 @@ impl Byteable for IndexEntry {
         entry.file_size = cursor.read_u32::<BigEndian>()?;
         cursor.read_exact(&mut entry.object_hash)?;
         entry.flags = cursor.read_u16::<BigEndian>()?;
-        
+
         let mut path_buf = Vec::new();
         cursor.read_until(b'\0', &mut path_buf)?;
         if path_buf.pop() != Some(b'\0') {
-            return Err(Error::Formatting("expected null byte after index entry path".into()))
+            return Err(Error::Formatting(
+                "expected null byte after index entry path".into(),
+            ));
         }
 
-        if entry.flag_path_len() != IndexEntry::PATH_LEN_FLAG_POSITION && entry.flag_path_len() as usize != path_buf.len() {
+        if entry.flag_path_len() != IndexEntry::PATH_LEN_FLAG_POSITION
+            && entry.flag_path_len() as usize != path_buf.len()
+        {
             return Err(Error::DataConsistency(
-                    format!("index entry path length \"{}\" did not match actual path length \"{}\"", entry.path_len(), path_buf.len()).into()
-            ))
+                format!(
+                    "index entry path length \"{}\" did not match actual path length \"{}\"",
+                    entry.path_len(),
+                    path_buf.len()
+                )
+                .into(),
+            ));
         }
 
         entry.path = OsString::from_vec(path_buf);

@@ -16,7 +16,7 @@ pub fn add(files: &Vec<OsString>) -> Result<String> {
     let files_to_ignore = fs::read_gitignore(&folder_path)?;
 
     let paths: Vec<PathBuf>;
-    if files.first().unwrap() == PATTERN_EVERY_FILE {
+    if files.first().expect("file did not have first element despite being checked for emptiness") == PATTERN_EVERY_FILE {
         // pattern to add every file
         paths = fs::read_dir_paths(&folder_path)?;
     } else {
@@ -33,7 +33,7 @@ pub fn add(files: &Vec<OsString>) -> Result<String> {
         .collect();
 
     for p in filtered_paths {
-        add_dir(p).unwrap();
+        add_dir(p).expect("failed to add dir");
     }
 
     Ok("Added files successfully".into())
