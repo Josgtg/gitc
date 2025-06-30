@@ -17,7 +17,6 @@ pub struct Index {
 }
 
 impl Byteable for Index {
-
     /// Returns a binary representation of this index.
     fn as_bytes(&self) -> Result<Rc<[u8]>> {
         let bytes = Vec::with_capacity(32);
@@ -28,7 +27,7 @@ impl Byteable for Index {
         cursor.write_u32::<BigEndian>(self.version_number)?;
         cursor.write_u32::<BigEndian>(self.entries_number)?;
 
-        let mut current_len: usize = 12;  // 12 from the 3 bytes above
+        let mut current_len: usize = 12; // 12 from the 3 bytes above
         let mut entry_data: Rc<[u8]>;
         let mut offset: usize;
         for e in self.entries.iter() {
