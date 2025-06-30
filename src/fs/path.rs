@@ -8,6 +8,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use crate::Constants;
+use crate::Error;
 use crate::Result;
 
 /// Reads a .gitignore file inside of `path`, returning a HashSet including all the files listed (read by line).
@@ -62,7 +63,7 @@ pub fn format_path(path: &Path) -> OsString {
     formatted.into()
 }
 
-/// 
+///
 
 /// Returns all the paths of the files and subdirectories inside of `dir`.
 ///
@@ -72,9 +73,12 @@ pub fn format_path(path: &Path) -> OsString {
 /// `dir` did not exist.
 /// `dir` was not a directory.
 /// Could not get the files inside of `dir`.
-pub fn read_dir_paths(dir: &Path) -> Result<Vec<PathBuf>> {
+pub fn read_dir_paths(path: &Path) -> Result<Vec<PathBuf>> {
     let mut paths = Vec::new();
-    let entries = std::fs::read_dir(dir)?;
+    let entries = std::fs::read_dir(path).map_err(|e| Error::Custom {
+        message: format!("couldn't get subdirectories for path: {path:?}").into(),
+        source: e.into(),
+    })?;
     for e in entries {
         paths.push(e?.path());
     }

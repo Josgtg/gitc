@@ -1,10 +1,10 @@
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-use crate::fs;
 use crate::hashing::Hash;
 use crate::index::{IndexBuilder, IndexEntry};
 use crate::object::Object;
+use crate::fs;
 use crate::{Constants, Result};
 
 const PATTERN_EVERY_FILE: &'static str = ".";
@@ -62,14 +62,15 @@ pub fn add(files: &[OsString]) -> Result<String> {
 
 /// This function calls itself recursively for every subdirectory inside of `dir`, until there are
 /// no more subdirectories, calling `add_file` for every file inside `dir`.
-fn add_dir(dir: PathBuf) -> Result<Vec<ObjectData>> {
+fn add_dir(path: PathBuf) -> Result<Vec<ObjectData>> {
+    if !path.is_dir() {
+        // is a file
+        return Ok(vec![add_file(path)?])
+    }
+
     let mut objects = Vec::new();
-    for p in fs::path::read_dir_paths(&dir)? {
-        if p.is_dir() {
-            objects.extend(add_dir(p)?);
-        } else {
-            objects.push(add_file(p)?);
-        }
+    for p in fs::path::read_dir_paths(&path)? {
+        objects.extend(add_dir(p)?);
     }
     Ok(objects)
 }
@@ -86,7 +87,8 @@ fn add_dir(dir: PathBuf) -> Result<Vec<ObjectData>> {
 fn add_file(path: PathBuf) -> Result<ObjectData> {
     let file = std::fs::File::open(&path)?;
 
-    let object = Object::try_from(file).expect(format!("could not create object from file: {path:?}").as_str());
+    let object = Object::try_from(file)
+        .expect(format!("could not create object from file: {path:?}").as_str());
     let hash = fs::object::write_to_object_dir(object)?;
 
     Ok((path, hash))

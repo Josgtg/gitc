@@ -5,6 +5,12 @@ use std::rc::Rc;
 pub enum Error {
     #[error("method is not implemented")]
     NotImplemented,
+    #[error("error: {message}\ncaused by: {source}")]
+    Custom{ 
+        message: Rc<str>,
+        #[source]
+        source: Box<dyn std::error::Error>,
+    },
     #[error("there was an error during the execution of the program")]
     Generic(Rc<str>),
     #[error("operation could not be completed: {0}")]
