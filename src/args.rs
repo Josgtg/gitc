@@ -36,4 +36,13 @@ pub enum Command {
         /// Reference or commit hash
         reference: String,
     },
+    /// Shows the files present in the index file
+    LsFiles {
+        /// Show files staged for commit
+        #[arg(long)]
+        stage: bool,
+        /// Shows more detailed information for every file
+        #[arg(long)]
+        debug: bool,
+    }
 }

@@ -2,6 +2,7 @@ mod add;
 mod checkout;
 mod commit;
 mod init;
+mod ls_files;
 
 use std::fs;
 
@@ -9,6 +10,7 @@ use add::add;
 use checkout::checkout;
 use commit::commit;
 use init::init;
+use ls_files::ls_files;
 
 use crate::args::Command;
 use crate::{Constants, Result};
@@ -35,5 +37,6 @@ pub fn execute_command(command: &Command) -> Result<String> {
         Command::Add { files } => add(files),
         Command::Commit { message } => commit(message.as_deref()),
         Command::Checkout { reference } => checkout(reference),
+        Command::LsFiles { stage, debug } => ls_files(*stage, *debug),
     }
 }
