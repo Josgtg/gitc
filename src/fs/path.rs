@@ -62,6 +62,8 @@ pub fn format_path(path: &Path) -> OsString {
     formatted.into()
 }
 
+/// 
+
 /// Returns all the paths of the files and subdirectories inside of `dir`.
 ///
 /// # Errors
@@ -85,7 +87,7 @@ pub fn read_dir_paths(dir: &Path) -> Result<Vec<PathBuf>> {
 mod tests {
     use std::{env, path::PathBuf};
 
-    use crate::fs::{format_path, relative_path};
+    use crate::fs::path::{format_path, relative_path};
 
     #[test]
     pub fn relative_path_test() {

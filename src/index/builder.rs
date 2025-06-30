@@ -5,8 +5,6 @@ use super::{ExtensionEntry, Index, IndexEntry};
 #[derive(Debug, Default)]
 pub struct IndexBuilder {
     index: Index,
-    entries: Vec<IndexEntry>,
-    extensions: Vec<ExtensionEntry>,
 }
 
 impl IndexBuilder {
@@ -18,9 +16,7 @@ impl IndexBuilder {
     }
 
     pub fn build(mut self) -> Index {
-        self.index.entries_number = self.entries.len() as u32;
-        self.index.entries = self.entries.into();
-        self.index.extensions = self.extensions.into();
+        self.index.entries_number = self.index.entries.len() as u32;
         self.index
     }
 
@@ -29,10 +25,18 @@ impl IndexBuilder {
     }
 
     pub fn add_index_entry(&mut self, entry: IndexEntry) {
-        self.entries.push(entry)
+        self.index.entries.push(entry)
     }
 
     pub fn add_extension_entry(&mut self, entry: ExtensionEntry) {
-        self.extensions.push(entry)
+        self.index.extensions.push(entry)
+    }
+}
+
+impl From<Index> for IndexBuilder {
+    /// Creates an `IndexBuilder` starting from an already starting index, allowing it to modify
+    /// it.
+    fn from(index: Index) -> Self {
+        Self { index }
     }
 }

@@ -12,6 +12,7 @@ use flate2::{Compression, write::ZlibEncoder};
 
 use crate::byteable::Byteable;
 use crate::{Error, Result};
+use crate::hashing::Hash;
 
 use super::ObjectType;
 
@@ -23,18 +24,24 @@ pub struct Object {
 }
 
 impl Object {
-    /// Returns the compressed version of this object, result of encoding it with the `as_bytes`
-    /// function and compressing it using zlib.
+    /// Returns a tuple with the compressed version of this object, result of encoding it with the `as_bytes`
+    /// function and compressing it using zlib in the first position and the hash produced by the bytes from
+    /// the `as_bytes` function in the second position.
     ///
     /// # Errors
     ///
     /// This function can fail if it couldn't encode the object or it couldn't write to the
     /// encoder.
-    pub fn compress(&self) -> Result<Rc<[u8]>> {
+    pub fn compress(&self) -> Result<(Rc<[u8]>, Hash)> {
         let bytes = self.as_bytes()?;
+
+        let hash = Hash::from(bytes.as_ref());
+
         let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
         encoder.write_all(&bytes)?;
-        encoder.finish().map(|b| b.into()).map_err(|e| e.into())
+        let compressed = encoder.finish()?.into();
+
+        Ok((compressed, hash))
     }
 
     /// Returns `data` decompressed, assuming it was originally compressed by the `Object::compress`
@@ -43,6 +50,7 @@ impl Object {
         let mut buf = Vec::new();
         let mut decoder = ZlibDecoder::new(data);
         decoder.read_to_end(&mut buf)?;
+
         Ok(buf.into())
     }
 }

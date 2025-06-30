@@ -4,8 +4,8 @@ use std::rc::Rc;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::byteable::Byteable;
-use crate::{Constants, Result};
-use crate::{Error, hashing};
+use crate::{Constants, Result, Error};
+use crate::hashing::Hash;
 
 use super::{ExtensionEntry, IndexBuilder, IndexEntry};
 
@@ -13,8 +13,8 @@ use super::{ExtensionEntry, IndexBuilder, IndexEntry};
 pub struct Index {
     pub(super) version_number: u32,
     pub(super) entries_number: u32,
-    pub(super) entries: Rc<[IndexEntry]>,
-    pub(super) extensions: Rc<[ExtensionEntry]>,
+    pub(super) entries: Vec<IndexEntry>,
+    pub(super) extensions: Vec<ExtensionEntry>,
 }
 
 impl Byteable for Index {
@@ -48,7 +48,7 @@ impl Byteable for Index {
         }
 
         // assigning checksum from previous data
-        let checksum = hashing::hash(cursor.get_ref());
+        let checksum = Hash::from(cursor.get_ref());
         cursor.write_all(checksum.as_ref())?;
 
         Ok(cursor.into_inner().into())

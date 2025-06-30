@@ -10,7 +10,7 @@ use std::{ffi::OsString, io::Write};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::byteable::Byteable;
-use crate::fs::relative_path;
+use crate::fs::path::relative_path;
 use crate::hashing::Hash;
 use crate::{Constants, Error, Result};
 
