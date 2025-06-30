@@ -2,22 +2,23 @@ use std::fs;
 use std::io::Cursor;
 
 use crate::byteable::Byteable;
+use crate::error::CustomResult;
 use crate::index::Index;
 use crate::{Constants, Result};
 
 pub fn read_index_file() -> Result<Index> {
-    let data = fs::read(Constants::index_path())?;
+    let data = fs::read(Constants::index_path()).map_err_with("could not get data from file when reading from index file")?;
     let mut cursor = Cursor::new(data);
 
-    let index = Index::from_bytes(&mut cursor)?;
+    let index = Index::from_bytes(&mut cursor).map_err_with("could not create index from index file's data")?;
 
     Ok(index)
 }
 
 pub fn write_index_file(index: Index) -> Result<()> {
-    let data = index.as_bytes()?;
+    let data = index.as_bytes().map_err_with("could not encode index when trying to write to index file")?;
 
-    fs::write(Constants::index_path(), data)?;
+    fs::write(Constants::index_path(), data).map_err_with("could not write data to index file")?;
 
     Ok(())
 } 

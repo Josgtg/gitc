@@ -4,8 +4,9 @@ use std::rc::Rc;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::byteable::Byteable;
-use crate::{Constants, Result, Error};
+use crate::error::CustomResult;
 use crate::hashing::Hash;
+use crate::{Constants, Error, Result};
 
 use super::{ExtensionEntry, IndexBuilder, IndexEntry};
 
@@ -24,17 +25,27 @@ impl Byteable for Index {
 
         let mut cursor = Cursor::new(bytes);
 
-        cursor.write_u32::<BigEndian>(Constants::INDEX_HEADER_BINARY)?;
-        cursor.write_u32::<BigEndian>(self.version_number)?;
-        cursor.write_u32::<BigEndian>(self.entries_number)?;
+        cursor
+            .write_u32::<BigEndian>(Constants::INDEX_HEADER_BINARY)
+            .map_err_with("could not write index header when encoding index")?;
+        cursor
+            .write_u32::<BigEndian>(self.version_number)
+            .map_err_with("could not write version_number when encoding index")?;
+        cursor
+            .write_u32::<BigEndian>(self.entries_number)
+            .map_err_with("could not write entries_number when encoding index")?;
 
         let mut current_len: usize = 12; // 12 from the 3 bytes above
         let mut entry_data: Rc<[u8]>;
         let mut offset: usize;
         for e in self.entries.iter() {
             // unwrapping for debugging reasons
-            entry_data = e.as_bytes().expect("could not serialize index entry");
-            cursor.write_all(&entry_data)?;
+            entry_data = e
+                .as_bytes()
+                .map_err_with("could not serialize index entry when encoding index")?;
+            cursor
+                .write_all(&entry_data)
+                .map_err_with("could not write index entry encoded data when encoding index")?;
 
             current_len += entry_data.len();
             offset = 8 - ((8 % current_len) % 8);
@@ -49,7 +60,9 @@ impl Byteable for Index {
 
         // assigning checksum from previous data
         let checksum = Hash::from(cursor.get_ref());
-        cursor.write_all(checksum.as_ref())?;
+        cursor
+            .write_all(checksum.as_ref())
+            .map_err_with("could not write checksum when encoding index")?;
 
         Ok(cursor.into_inner().into())
     }
@@ -64,14 +77,18 @@ impl Byteable for Index {
     fn from_bytes<R: BufRead>(cursor: &mut R) -> Result<Self> {
         let mut builder = IndexBuilder::new();
 
-        let dirc = cursor.read_u32::<BigEndian>()?;
+        let dirc = cursor
+            .read_u32::<BigEndian>()
+            .map_err_with("could not read DIRC when decoding index")?;
         if dirc != Constants::INDEX_HEADER_BINARY {
             return Err(Error::DataConsistency(
                 "index file does not contain a valid header".into(),
             ));
         }
 
-        let version_number = cursor.read_u32::<BigEndian>()?;
+        let version_number = cursor
+            .read_u32::<BigEndian>()
+            .map_err_with("could not read version_number when decoding index")?;
         if version_number != Constants::INDEX_VERSION_NUMBER {
             return Err(Error::DataConsistency(
                 format!(
@@ -83,14 +100,16 @@ impl Byteable for Index {
             ));
         }
 
-        let entries_number = cursor.read_u32::<BigEndian>()?;
+        let entries_number = cursor
+            .read_u32::<BigEndian>()
+            .map_err_with("could not read entries_number when decoding index")?;
 
         let mut entry: IndexEntry;
         let mut current_len: usize = 12;
         let mut padding: usize;
         for _ in 0..entries_number {
             entry = IndexEntry::from_bytes(cursor)
-                .expect("could not form an index entry from the given cursor");
+                .map_err_with("failed to build an index entry when decoding index")?;
 
             current_len += entry.len();
             padding = (8 - (current_len % 8)) % 8;
@@ -104,11 +123,13 @@ impl Byteable for Index {
         // TODO: Read extensions
 
         let index = builder.build();
-        let index_bytes = index.as_bytes().expect("could not serialize index"); // TODO: look for a way to check hash without hashing all the index
+        let index_bytes = index
+            .as_bytes()
+            .map_err_with("could not encode current index when decoding index")?; // TODO: look for a way to check hash without hashing all the index
 
         let produced_hash = &index_bytes[index_bytes.len() - 20..];
         let mut actual_hash: [u8; 20] = [0; 20];
-        cursor.read_exact(&mut actual_hash)?;
+        cursor.read_exact(&mut actual_hash).map_err_with("could not read checksum when decoding index")?;
 
         if produced_hash != actual_hash {
             return Err(Error::DataConsistency(

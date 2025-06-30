@@ -10,6 +10,7 @@ use std::{ffi::OsString, io::Write};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::byteable::Byteable;
+use crate::error::CustomResult;
 use crate::fs::path::relative_path;
 use crate::hashing::Hash;
 use crate::{Constants, Error, Result};
@@ -44,8 +45,8 @@ impl IndexEntry {
     /// - The file in the provided path could not be opened.
     /// - It wasn't able to get the metadata of the file.
     pub fn try_from_file(file_path: &Path, object_hash: Hash) -> Result<Self> {
-        let file = File::open(file_path)?;
-        let metadata = file.metadata()?;
+        let file = File::open(file_path).map_err_with("failed to open file when encoding index entry")?;
+        let metadata = file.metadata().map_err_with("could not get file metadata when encoding index entry")?;
         Ok(IndexEntry {
             creation_time_sec: metadata.created()?.duration_since(UNIX_EPOCH)?.as_secs() as u32,
             creation_time_nsec: metadata
@@ -151,20 +152,20 @@ impl Byteable for IndexEntry {
 
         let mut cursor = Cursor::new(bytes);
 
-        cursor.write_u32::<BigEndian>(self.creation_time_sec)?;
-        cursor.write_u32::<BigEndian>(self.creation_time_nsec)?;
-        cursor.write_u32::<BigEndian>(self.modification_time_sec)?;
-        cursor.write_u32::<BigEndian>(self.modification_time_nsec)?;
-        cursor.write_u32::<BigEndian>(self.device)?;
-        cursor.write_u32::<BigEndian>(self.inode)?;
-        cursor.write_u32::<BigEndian>(self.mode)?;
-        cursor.write_u32::<BigEndian>(self.uid)?;
-        cursor.write_u32::<BigEndian>(self.gid)?;
-        cursor.write_u32::<BigEndian>(self.file_size)?;
-        cursor.write_all(&self.object_hash)?;
-        cursor.write_u16::<BigEndian>(self.flags)?;
+        cursor.write_u32::<BigEndian>(self.creation_time_sec).map_err_with("could not write creation_time_sec when encoding index entry")?;
+        cursor.write_u32::<BigEndian>(self.creation_time_nsec).map_err_with("could not write creation_time_nsec when encoding index entry")?;
+        cursor.write_u32::<BigEndian>(self.modification_time_sec).map_err_with("could not write modification_time_sec when encoding index entry")?;
+        cursor.write_u32::<BigEndian>(self.modification_time_nsec).map_err_with("could not write modification_time_nsec when encoding index entry")?;
+        cursor.write_u32::<BigEndian>(self.device).map_err_with("could not write device when encoding index entry")?;
+        cursor.write_u32::<BigEndian>(self.inode).map_err_with("could not write inode when encoding index entry")?;
+        cursor.write_u32::<BigEndian>(self.mode).map_err_with("could not write mode when encoding index entry")?;
+        cursor.write_u32::<BigEndian>(self.uid).map_err_with("could not write uid when encoding index entry")?;
+        cursor.write_u32::<BigEndian>(self.gid).map_err_with("could not write gid when encoding index entry")?;
+        cursor.write_u32::<BigEndian>(self.file_size).map_err_with("could not write file_size when encoding index entry")?;
+        cursor.write_all(&self.object_hash).map_err_with("could not write object_hash when encoding index entry")?;
+        cursor.write_u16::<BigEndian>(self.flags).map_err_with("could not write flags when encoding index entry")?;
 
-        cursor.write_all(self.path.as_encoded_bytes())?;
+        cursor.write_all(self.path.as_encoded_bytes()).map_err_with("could not write path when encoding index entry")?;
         cursor.write_u8(b'\0')?;
 
         Ok(cursor.into_inner().into())
@@ -180,21 +181,21 @@ impl Byteable for IndexEntry {
     fn from_bytes<R: BufRead>(cursor: &mut R) -> Result<Self> {
         let mut entry = IndexEntry::default();
 
-        entry.creation_time_sec = cursor.read_u32::<BigEndian>()?;
-        entry.creation_time_nsec = cursor.read_u32::<BigEndian>()?;
-        entry.modification_time_sec = cursor.read_u32::<BigEndian>()?;
-        entry.modification_time_nsec = cursor.read_u32::<BigEndian>()?;
-        entry.device = cursor.read_u32::<BigEndian>()?;
-        entry.inode = cursor.read_u32::<BigEndian>()?;
-        entry.mode = cursor.read_u32::<BigEndian>()?;
-        entry.uid = cursor.read_u32::<BigEndian>()?;
-        entry.gid = cursor.read_u32::<BigEndian>()?;
-        entry.file_size = cursor.read_u32::<BigEndian>()?;
-        cursor.read_exact(&mut entry.object_hash)?;
-        entry.flags = cursor.read_u16::<BigEndian>()?;
+        entry.creation_time_sec = cursor.read_u32::<BigEndian>().map_err_with("could not read creation_time_sec when decoding index entry")?;
+        entry.creation_time_nsec = cursor.read_u32::<BigEndian>().map_err_with("could not read creation_time_nsec when decoding index entry")?;
+        entry.modification_time_sec = cursor.read_u32::<BigEndian>().map_err_with("could not read modification_time_sec when decoding index entry")?;
+        entry.modification_time_nsec = cursor.read_u32::<BigEndian>().map_err_with("could not read modification_time_nsec when decoding index entry")?;
+        entry.device = cursor.read_u32::<BigEndian>().map_err_with("could not read device when decoding index entry")?;
+        entry.inode = cursor.read_u32::<BigEndian>().map_err_with("could not read inode when decoding index entry")?;
+        entry.mode = cursor.read_u32::<BigEndian>().map_err_with("could not read mode when decoding index entry")?;
+        entry.uid = cursor.read_u32::<BigEndian>().map_err_with("could not read uid when decoding index entry")?;
+        entry.gid = cursor.read_u32::<BigEndian>().map_err_with("could not read gid when decoding index entry")?;
+        entry.file_size = cursor.read_u32::<BigEndian>().map_err_with("could not read file_size when decoding index entry")?;
+        cursor.read_exact(&mut entry.object_hash).map_err_with("could not read object hash when decoding index entry")?;
+        entry.flags = cursor.read_u16::<BigEndian>().map_err_with("could not read flags when decoding index entry")?;
 
         let mut path_buf = Vec::new();
-        cursor.read_until(b'\0', &mut path_buf)?;
+        cursor.read_until(b'\0', &mut path_buf).map_err_with("could not read path when decoding index entry")?;
         if path_buf.pop() != Some(b'\0') {
             return Err(Error::Formatting(
                 "expected null byte after index entry path".into(),
@@ -207,7 +208,7 @@ impl Byteable for IndexEntry {
             return Err(Error::DataConsistency(
                 format!(
                     "index entry path length \"{}\" did not match actual path length \"{}\"",
-                    entry.path_len(),
+                    entry.flag_path_len(),
                     path_buf.len()
                 )
                 .into(),

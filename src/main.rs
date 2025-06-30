@@ -19,6 +19,6 @@ fn main() {
 
     match commands::execute_command(&args.command) {
         Ok(message) => println!("{message}"),
-        Err(error) => eprintln!("{error}"),
+        Err(error) => error.print_backtrace(),
     }
 }

@@ -7,8 +7,8 @@ use std::io::BufReader;
 use std::path::Path;
 use std::path::PathBuf;
 
+use crate::error::CustomResult;
 use crate::Constants;
-use crate::Error;
 use crate::Result;
 
 /// Reads a .gitignore file inside of `path`, returning a HashSet including all the files listed (read by line).
@@ -24,11 +24,11 @@ pub fn read_gitignore(path: &Path) -> Result<HashSet<PathBuf>> {
     set.insert(PathBuf::from(Constants::REPOSITORY_FOLDER_NAME));
 
     let gitignore_path = path.join(Constants::GITIGNORE_FILE_NAME);
-    if !std::fs::exists(&gitignore_path)? {
+    if !std::fs::exists(&gitignore_path).map_err_with("could not check gitignore file existance")? {
         return Ok(set);
     }
 
-    let gitignore = File::open(gitignore_path)?;
+    let gitignore = File::open(gitignore_path).map_err_with("could not open gitignore file")?;
 
     let reader = BufReader::new(gitignore);
     for line in reader.lines().filter_map(|l| l.ok()) {
@@ -75,10 +75,7 @@ pub fn format_path(path: &Path) -> OsString {
 /// Could not get the files inside of `dir`.
 pub fn read_dir_paths(path: &Path) -> Result<Vec<PathBuf>> {
     let mut paths = Vec::new();
-    let entries = std::fs::read_dir(path).map_err(|e| Error::Custom {
-        message: format!("couldn't get subdirectories for path: {path:?}").into(),
-        source: e.into(),
-    })?;
+    let entries = std::fs::read_dir(path).map_err_with("could not get directory entries")?;
     for e in entries {
         paths.push(e?.path());
     }
