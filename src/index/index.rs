@@ -1,4 +1,4 @@
-use std::io::{Cursor, Write};
+use std::io::{BufRead, Cursor, Write};
 use std::rc::Rc;
 
 use byteorder::{BigEndian, WriteBytesExt};
@@ -7,7 +7,7 @@ use crate::byteable::Byteable;
 use crate::hashing;
 use crate::{Constants, Result};
 
-use super::{ExtensionEntry, IndexEntry};
+use super::{ExtensionEntry, IndexBuilder, IndexEntry};
 
 pub struct Index {
     pub(super) version_number: u32,
@@ -60,7 +60,9 @@ impl Byteable for Index {
     /// This function will fail if:
     /// - There was an error reading from the bytes.
     /// - The format of the bytes was not the expected one.
-    fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        todo!()
+    fn from_bytes<R: BufRead>(cursor: &mut R) -> Result<Self> {
+        let builder = IndexBuilder::new();
+
+        Ok(builder.build())
     }
 }

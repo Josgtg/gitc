@@ -77,27 +77,23 @@ impl Byteable for Object {
     // This function will fail if:
     // - The data could not be read.
     // - The data did not have a valid format.
-    fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        let mut cursor = Cursor::new(bytes);
-
+    fn from_bytes<R: BufRead>(cursor: &mut R) -> Result<Self> {
         // reading type
         let mut kind_buf = Vec::new();
         cursor.read_until(b' ', &mut kind_buf)?; // reading until space, before it there is the object type
-        if *kind_buf.last().unwrap_or(&b'0') != b' ' {
+        if kind_buf.pop() != Some(b' ') {
             return Err(Error::Formatting("expected space after object type".into()));
         }
-        kind_buf.pop(); // popping trailing space
         let kind = ObjectType::try_from(String::from_utf8(kind_buf)?.as_str())?;
 
         // reading data length
         let mut len_buf = Vec::new();
         cursor.read_until(b'\0', &mut len_buf)?; // reading until null char, before this there is the data length
-        if *len_buf.last().unwrap_or(&b'x') != b'\0' {
+        if len_buf.pop() != Some(b'\0') {
             return Err(Error::Formatting(
                 "expected null byte after object data length".into(),
             ));
         }
-        len_buf.pop(); // popping null character
         let data_len: usize = String::from_utf8(len_buf)?.parse().map_err(|e| {
             Error::DataConsistency(format!("could not read data object lenght: {e:?}").into())
         })?;
