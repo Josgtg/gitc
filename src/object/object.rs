@@ -8,7 +8,7 @@ use std::rc::Rc;
 use byteorder::WriteBytesExt;
 
 use flate2::bufread::ZlibDecoder;
-use flate2::{write::ZlibEncoder, Compression};
+use flate2::{Compression, write::ZlibEncoder};
 
 use crate::byteable::Byteable;
 use crate::{Error, Result};

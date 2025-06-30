@@ -24,7 +24,7 @@ pub fn read_gitignore(path: &Path) -> Result<HashSet<PathBuf>> {
 
     let gitignore_path = path.join(Constants::GITIGNORE_FILE_NAME);
     if !std::fs::exists(&gitignore_path)? {
-        return Ok(set)
+        return Ok(set);
     }
 
     let gitignore = File::open(gitignore_path)?;
@@ -79,8 +79,6 @@ pub fn read_dir_paths(dir: &Path) -> Result<Vec<PathBuf>> {
     Ok(paths)
 }
 
-
-
 // Tests
 
 #[cfg(test)]
@@ -95,7 +93,10 @@ mod tests {
         let base = env::current_dir().expect("failed to get current dir");
         let joined = base.join(&path);
 
-        assert_eq!(path, relative_path(&joined, &base).expect("failed to get relative path"));
+        assert_eq!(
+            path,
+            relative_path(&joined, &base).expect("failed to get relative path")
+        );
 
         let base2 = PathBuf::from("/home/juano/");
 
@@ -113,7 +114,7 @@ mod tests {
         path.push("games");
         path.push("game.exe");
         let objective = "/home/josgtg/games/game.exe";
-        
+
         assert_eq!(objective, format_path(&path))
     }
 }

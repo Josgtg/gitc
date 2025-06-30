@@ -16,7 +16,7 @@ use crate::{Constants, Error, Result};
 
 /// Represents an entry for a file in the git index. It contains all the information needed to
 /// recreate a file.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct IndexEntry {
     creation_time_sec: u32,
     creation_time_nsec: u32,
@@ -48,10 +48,16 @@ impl IndexEntry {
         let metadata = file.metadata()?;
         Ok(IndexEntry {
             creation_time_sec: metadata.created()?.duration_since(UNIX_EPOCH)?.as_secs() as u32,
-            creation_time_nsec: metadata.created()?.duration_since(UNIX_EPOCH)?.subsec_nanos() as u32,
+            creation_time_nsec: metadata
+                .created()?
+                .duration_since(UNIX_EPOCH)?
+                .subsec_nanos() as u32,
             modification_time_sec: metadata.modified()?.duration_since(UNIX_EPOCH)?.as_secs()
                 as u32,
-            modification_time_nsec: metadata.modified()?.duration_since(UNIX_EPOCH)?.subsec_nanos() as u32,
+            modification_time_nsec: metadata
+                .modified()?
+                .duration_since(UNIX_EPOCH)?
+                .subsec_nanos() as u32,
             device: metadata.dev() as u32,
             inode: metadata.ino() as u32,
             mode: metadata.mode(),

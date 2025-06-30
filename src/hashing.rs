@@ -1,7 +1,7 @@
 use sha1::{Digest, Sha1};
 
-use crate::byteable::Byteable;
 use crate::Result;
+use crate::byteable::Byteable;
 
 #[derive(Debug, PartialEq)]
 pub struct Hash([u8; 20]);
@@ -30,8 +30,6 @@ pub fn hash(data: &[u8]) -> Hash {
     hasher.update(data);
     Hash(hasher.finalize().into())
 }
-
-
 
 // Tests
 

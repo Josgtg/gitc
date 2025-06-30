@@ -18,7 +18,7 @@ pub enum Command {
         /// If set, creates a new folder with the given name and initializes the empty repository
         /// in that folder.
         #[arg(short)]
-        folder_name: Option<OsString>
+        folder_name: Option<OsString>,
     },
     /// Creates a new blob and updates index
     Add {

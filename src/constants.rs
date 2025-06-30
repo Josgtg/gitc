@@ -18,7 +18,8 @@ impl Constants {
     pub fn repository_folder_path() -> PathBuf {
         let current_dir = env::current_dir().expect("failed to get current dir");
         let mut path: PathBuf = PathBuf::from(current_dir);
-        #[cfg(debug_assertions)] {
+        #[cfg(debug_assertions)]
+        {
             path.push("test-repo");
         }
         path

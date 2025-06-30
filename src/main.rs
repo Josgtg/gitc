@@ -1,14 +1,14 @@
 #![allow(dead_code)]
 
 mod args;
+mod byteable;
 mod commands;
 mod constants;
 mod error;
-mod index;
-mod hashing;
-mod object;
-mod byteable;
 mod fs;
+mod hashing;
+mod index;
+mod object;
 
 use clap::Parser;
 pub use constants::*;

@@ -1,4 +1,8 @@
-use std::{ffi::OsString, fs, path::PathBuf};
+use std::{
+    ffi::{OsStr, OsString},
+    fs,
+    path::PathBuf,
+};
 
 use crate::{Constants, Result};
 
@@ -8,7 +12,7 @@ use crate::{Constants, Result};
 ///
 /// This function will fail if any of the operations related with the creation of directories and
 /// files fail.
-pub fn init(folder_name: &Option<OsString>) -> Result<String> {
+pub fn init(folder_name: Option<&OsStr>) -> Result<String> {
     // building root folder
     let repository_path = Constants::repository_path();
     let path = match folder_name {
@@ -17,14 +21,18 @@ pub fn init(folder_name: &Option<OsString>) -> Result<String> {
     };
 
     if fs::exists(&path)? {
-        return Ok("The directory is already a git repository".into())
+        return Ok("The directory is already a git repository".into());
     }
 
     // creating directory if it didn't exist
     fs::create_dir_all(&path)?;
 
     // creating subdirectories
-    for p in [Constants::objects_path(), Constants::refs_path(), Constants::heads_path()] {
+    for p in [
+        Constants::objects_path(),
+        Constants::refs_path(),
+        Constants::heads_path(),
+    ] {
         fs::create_dir_all(p)?;
     }
 

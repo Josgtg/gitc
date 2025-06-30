@@ -10,7 +10,6 @@ pub struct IndexBuilder {
 }
 
 impl IndexBuilder {
-    
     /// Returns an `IndexBuilder` with a default index.
     pub fn new() -> Self {
         let mut ib = Self::default();
@@ -37,4 +36,3 @@ impl IndexBuilder {
         self.extensions.push(entry)
     }
 }
-

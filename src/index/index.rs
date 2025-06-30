@@ -4,12 +4,12 @@ use std::rc::Rc;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::byteable::Byteable;
-use crate::{hashing, Error};
 use crate::{Constants, Result};
+use crate::{Error, hashing};
 
 use super::{ExtensionEntry, IndexBuilder, IndexEntry};
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Index {
     pub(super) version_number: u32,
     pub(super) entries_number: u32,
@@ -89,7 +89,8 @@ impl Byteable for Index {
         let mut current_len: usize = 12;
         let mut padding: usize;
         for _ in 0..entries_number {
-            entry = IndexEntry::from_bytes(cursor).expect("could not form an index entry from the given cursor");
+            entry = IndexEntry::from_bytes(cursor)
+                .expect("could not form an index entry from the given cursor");
 
             current_len += entry.len();
             padding = (8 - (current_len % 8)) % 8;

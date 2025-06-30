@@ -1,4 +1,4 @@
-use crate::{Result, Error};
+use crate::{Error, Result};
 
 #[derive(Debug)]
 pub enum ObjectType {
@@ -8,14 +8,12 @@ pub enum ObjectType {
 }
 
 impl ObjectType {
-
     const BLOB_STRING: &'static str = "blob";
     const TREE_STRING: &'static str = "tree";
     const COMMIT_STRING: &'static str = "commit";
 }
 
 impl std::fmt::Display for ObjectType {
-
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Self::Blob => ObjectType::BLOB_STRING,
@@ -33,7 +31,9 @@ impl TryFrom<&str> for ObjectType {
             ObjectType::BLOB_STRING => Ok(ObjectType::Blob),
             ObjectType::TREE_STRING => Ok(ObjectType::Tree),
             ObjectType::COMMIT_STRING => Ok(ObjectType::Commit),
-            _ => Err(Error::Generic(format!("provided value \"{value}\" does not match any object type").into()))
+            _ => Err(Error::Generic(
+                format!("provided value \"{value}\" does not match any object type").into(),
+            )),
         }
     }
 }

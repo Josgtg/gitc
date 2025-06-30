@@ -22,18 +22,18 @@ use crate::{Constants, Result};
 /// # Errors
 ///
 /// This function will fail if any of the executed commands return an error.
-pub fn execute_command(command: &Command) -> Result<String> { 
+pub fn execute_command(command: &Command) -> Result<String> {
     if !fs::exists(Constants::repository_path())? {
         if let Command::Init { folder_name } = command {
             // Only command that can be executed without a repository already existing
-            return init(folder_name);
+            return init(folder_name.as_deref());
         }
         return Ok("Folder is not a git repository".into());
     }
     match command {
-        Command::Init { folder_name } => init(folder_name),  // always returns an "already a git repository"
+        Command::Init { folder_name } => init(folder_name.as_deref()), // always returns an "already a git repository"
         Command::Add { files } => add(files),
-        Command::Commit { message } => commit(message),
+        Command::Commit { message } => commit(message.as_deref()),
         Command::Checkout { reference } => checkout(reference),
     }
 }
