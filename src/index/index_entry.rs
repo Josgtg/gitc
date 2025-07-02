@@ -1,7 +1,7 @@
 use std::ffi::OsStr;
 use std::fmt::{Debug, Display};
 use std::fs::File;
-use std::io::{BufRead, Cursor, Read};
+use std::io::{BufRead, Cursor};
 use std::os::unix::ffi::OsStringExt;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
@@ -218,7 +218,7 @@ impl Byteable for IndexEntry {
     /// This function will fail if:
     /// - There was an error reading from the bytes.
     /// - The format of the bytes was not the expected one.
-    fn from_bytes<T: AsRef<[u8]>>(cursor: &mut Cursor<T>) -> Result<Self> {
+    fn from_bytes<T: BufRead>(cursor: &mut T) -> Result<Self> {
         let entry = IndexEntry {
             creation_time_sec: cursor
                 .read_u32::<BigEndian>()

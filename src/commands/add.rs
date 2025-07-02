@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use crate::error::CustomResult;
 use crate::fs;
 use crate::hashing::Hash;
-use crate::index::{builder::IndexBuilder, IndexEntry};
+use crate::index::{IndexEntry, builder::IndexBuilder};
 use crate::object::Object;
 use crate::{Constants, Result};
 
@@ -47,6 +47,9 @@ pub fn add(files: &[OsString]) -> Result<String> {
     for p in filtered_paths {
         objects.extend(add_dir(p).map_err_with("failed to add dir")?);
     }
+
+    // ordering entries in lexicographical order
+    objects.sort_by(|(p1, _), (p2, _)| PathBuf::cmp(p1, p2));
 
     // getting previous index to update it
     let previous_index = fs::index::read_index_file().map_err_with("could not read index file")?;

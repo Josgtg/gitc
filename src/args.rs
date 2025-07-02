@@ -40,5 +40,5 @@ pub enum Command {
         /// Shows more detailed information for every file
         #[arg(short, long)]
         debug: bool,
-    }
+    },
 }

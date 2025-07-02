@@ -2,7 +2,7 @@ use std::ffi::OsStr;
 use std::fs;
 use std::path::PathBuf;
 
-use crate::{error::CustomResult, Constants, Result};
+use crate::{Constants, Result, error::CustomResult};
 
 /// Creates a new git repository, placing it inside `folder_name` if one is provided.
 ///
@@ -23,7 +23,8 @@ pub fn init(folder_name: Option<&OsStr>) -> Result<String> {
     }
 
     // creating directory if it didn't exist
-    fs::create_dir_all(&path).map_err_with("could not create repository directory when initializing")?;
+    fs::create_dir_all(&path)
+        .map_err_with("could not create repository directory when initializing")?;
 
     // creating subdirectories
     for p in [
@@ -31,11 +32,14 @@ pub fn init(folder_name: Option<&OsStr>) -> Result<String> {
         Constants::refs_path(),
         Constants::heads_path(),
     ] {
-        fs::create_dir_all(&p).map_err_with(format!("could not create repository subdirectories, specifically: {p:?}"))?;
+        fs::create_dir_all(&p).map_err_with(format!(
+            "could not create repository subdirectories, specifically: {p:?}"
+        ))?;
     }
 
     // creating default head file
-    fs::write(Constants::head_path(), Constants::DEFAULT_HEAD).map_err_with("could not write to HEAD when initializing")?;
+    fs::write(Constants::head_path(), Constants::DEFAULT_HEAD)
+        .map_err_with("could not write to HEAD when initializing")?;
 
     Ok("Created new git repository".into())
 }

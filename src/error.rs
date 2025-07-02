@@ -6,7 +6,7 @@ pub enum Error {
     #[error("method is not implemented")]
     NotImplemented,
     #[error("{message}\ncaused by: {source:?}")]
-    Custom{ 
+    Custom {
         message: Rc<str>,
         #[source]
         source: Box<Error>,
@@ -40,7 +40,7 @@ impl Error {
         if let Self::Custom { message, source } = err {
             eprintln!("error: {message}");
             err = source;
-            while let Self::Custom{ message, source } = err {
+            while let Self::Custom { message, source } = err {
                 eprintln!("caused by: {message}");
                 err = source;
             }
@@ -52,12 +52,17 @@ impl Error {
 }
 
 pub trait CustomError {
-    fn custom(self, message: impl AsRef<str>) -> Error where Self: Into<Error>;
+    fn custom(self, message: impl AsRef<str>) -> Error
+    where
+        Self: Into<Error>;
 }
 
 impl<E: Into<Error>> CustomError for E {
     fn custom(self, message: impl AsRef<str>) -> Error {
-        Error::Custom { message: message.as_ref().into(), source: Box::new(self.into()) }
+        Error::Custom {
+            message: message.as_ref().into(),
+            source: Box::new(self.into()),
+        }
     }
 }
 

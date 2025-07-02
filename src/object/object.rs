@@ -8,7 +8,7 @@ use std::rc::Rc;
 use byteorder::WriteBytesExt;
 
 use flate2::bufread::ZlibDecoder;
-use flate2::{write::ZlibEncoder, Compression};
+use flate2::{Compression, write::ZlibEncoder};
 
 use crate::byteable::Byteable;
 use crate::error::CustomResult;
@@ -101,7 +101,7 @@ impl Byteable for Object {
     // This function will fail if:
     // - The data could not be read.
     // - The data did not have a valid format.
-    fn from_bytes<T: AsRef<[u8]>>(cursor: &mut Cursor<T>) -> Result<Self> {
+    fn from_bytes<T: BufRead>(cursor: &mut T) -> Result<Self> {
         // reading type
         let mut kind_buf = Vec::new();
         // reading until space, before it there is the object type

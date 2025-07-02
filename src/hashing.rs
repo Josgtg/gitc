@@ -6,7 +6,7 @@ pub struct Hash(Rc<[u8; 20]>);
 
 impl Hash {
     /// Returns the SHA1 hash for the data passed
-    pub fn hash_data(value: &[u8]) -> Self { 
+    pub fn hash_data(value: &[u8]) -> Self {
         let mut hasher = Sha1::new();
         hasher.update(value);
         Hash(Rc::new(hasher.finalize().into()))
@@ -44,9 +44,7 @@ impl Display for Hash {
     }
 }
 
-
 // Tests
-
 
 #[cfg(test)]
 mod tests {
@@ -66,7 +64,9 @@ mod tests {
 
     #[test]
     pub fn test_no_change() {
-        let hash_bytes: [u8; 20] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+        let hash_bytes: [u8; 20] = [
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+        ];
         let hash = Hash::from(hash_bytes);
         let hash_bytes_changed: [u8; 20] = hash.into();
         assert_eq!(hash_bytes, hash_bytes_changed);

@@ -1,4 +1,4 @@
-use std::io::{Cursor, Read, Write};
+use std::io::{BufRead, Cursor, Write};
 use std::rc::Rc;
 use std::slice::Iter;
 
@@ -9,7 +9,7 @@ use crate::error::CustomResult;
 use crate::hashing::Hash;
 use crate::{Constants, Error, Result};
 
-use super::{ExtensionEntry, builder::IndexBuilder, IndexEntry};
+use super::{ExtensionEntry, IndexEntry, builder::IndexBuilder};
 
 #[derive(Debug, Clone)]
 pub struct Index {
@@ -74,7 +74,7 @@ impl Byteable for Index {
     /// This function will fail if:
     /// - There was an error reading from the bytes.
     /// - The format of the bytes was not the expected one.
-    fn from_bytes<T: AsRef<[u8]>>(cursor: &mut Cursor<T>) -> Result<Self> {
+    fn from_bytes<T: BufRead>(cursor: &mut T) -> Result<Self> {
         let mut builder = IndexBuilder::new();
 
         let dirc = cursor
@@ -120,12 +120,15 @@ impl Byteable for Index {
 
         let produced_hash = &index_bytes[index_bytes.len() - 20..];
         let mut actual_hash: [u8; 20] = [0; 20];
-        cursor.read_exact(&mut actual_hash).map_err_with("could not read checksum when decoding index")?;
+        cursor
+            .read_exact(&mut actual_hash)
+            .map_err_with("could not read checksum when decoding index")?;
 
+        // checking for valid checksum
         if produced_hash != actual_hash {
-            // return Err(Error::DataConsistency(
-            //    "index checksum does not correspond with internal data".into(),
-            // ));
+            return Err(Error::DataConsistency(
+                "index checksum does not correspond with internal data".into(),
+            ));
         }
 
         Ok(index)

@@ -7,9 +7,9 @@ use std::io::BufReader;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::error::CustomResult;
 use crate::Constants;
 use crate::Result;
+use crate::error::CustomResult;
 
 /// Reads a .gitignore file inside of `path`, returning a HashSet including all the files listed (read by line).
 ///

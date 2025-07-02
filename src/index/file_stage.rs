@@ -23,7 +23,13 @@ impl TryFrom<u16> for FileStage {
             1 => Ok(Self::Ours),
             2 => Ok(Self::Theirs),
             3 => Ok(Self::Base),
-            _ => Err(Error::Generic(format!("value passed ({}) does not correspond to a file stage", value).into())),
+            _ => Err(Error::Generic(
+                format!(
+                    "value passed ({}) does not correspond to a file stage",
+                    value
+                )
+                .into(),
+            )),
         }
     }
 }
