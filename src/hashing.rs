@@ -6,7 +6,7 @@ pub struct Hash(Rc<[u8; 20]>);
 
 impl Hash {
     /// Returns the SHA1 hash for the data passed
-    pub fn hash_data(value: &[u8]) -> Self {
+    pub fn new(value: &[u8]) -> Self {
         let mut hasher = Sha1::new();
         hasher.update(value);
         Hash(Rc::new(hasher.finalize().into()))
@@ -53,12 +53,12 @@ mod tests {
     #[test]
     pub fn test_hashing() {
         let data = b"this is binary data";
-        let data_hash = Hash::hash_data(data);
+        let data_hash = Hash::new(data);
         let data2 = b"this is binary data";
-        let data2_hash = Hash::hash_data(data2);
+        let data2_hash = Hash::new(data2);
         assert_eq!(data_hash, data2_hash);
         let data3 = b"This is binary data";
-        let data3_hash = Hash::hash_data(data3);
+        let data3_hash = Hash::new(data3);
         assert_ne!(data_hash, data3_hash);
     }
 

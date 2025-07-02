@@ -59,7 +59,7 @@ impl Byteable for Index {
         }
 
         // assigning checksum from previous data
-        let checksum = Hash::hash_data(cursor.get_ref());
+        let checksum = Hash::new(cursor.get_ref());
         cursor
             .write_all(checksum.as_ref())
             .map_err_with("could not write checksum when encoding index")?;

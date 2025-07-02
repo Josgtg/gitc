@@ -7,13 +7,11 @@ use std::rc::Rc;
 
 use byteorder::WriteBytesExt;
 
-use flate2::bufread::ZlibDecoder;
-use flate2::{Compression, write::ZlibEncoder};
-
 use crate::byteable::Byteable;
 use crate::error::CustomResult;
 use crate::hashing::Hash;
 use crate::{Error, Result};
+use crate::utils::zlib;
 
 use super::ObjectType;
 
@@ -33,35 +31,30 @@ impl Object {
     ///
     /// This function can fail if it couldn't encode the object or it couldn't write to the
     /// encoder.
-    pub fn compress(&self) -> Result<(Rc<[u8]>, Hash)> {
+    pub fn compress(&self) -> Result<Rc<[u8]>> {
         let bytes = self
             .as_bytes()
             .map_err_with("could not encode object when compressing")?;
 
-        let hash = Hash::hash_data(bytes.as_ref());
-
-        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-        encoder
-            .write_all(&bytes)
-            .map_err_with("failed to write to encoder when compressing object")?;
-        let compressed = encoder
-            .finish()
-            .map_err_with("could not finalize object compression")?
-            .into();
-
-        Ok((compressed, hash))
+        zlib::compress(bytes.as_ref()).map_err_with("could not compress object")
     }
 
-    /// Returns `data` decompressed, assuming it was originally compressed by the `Object::compress`
-    /// method.
-    pub fn decompress(data: &[u8]) -> Result<Rc<[u8]>> {
-        let mut buf = Vec::new();
-        let mut decoder = ZlibDecoder::new(data);
-        decoder
-            .read_to_end(&mut buf)
-            .map_err_with("could not read data when decompressing object")?;
+    /// Returns an object made from the data, decompressing it and assigning `kind` as its type.
+    ///
+    /// # Errors
+    ///
+    /// This function will fail if the decoder couldn't decompress the data.
+    pub fn decompress(kind: ObjectType, data: &[u8]) -> Result<Object> {
+        Ok(Object {
+            kind,
+            data: zlib::decompress(data.as_ref()).map_err_with("could not decompress data to create an object")?,
+        })
+    }
 
-        Ok(buf.into())
+    /// Returns the hash for this object binary data.
+    pub fn hash(&self) -> Result<Hash> {
+        let data = self.as_bytes().map_err_with("could not encode object when getting its hash")?;
+        Ok(Hash::new(data.as_ref()))
     }
 }
 

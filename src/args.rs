@@ -17,28 +17,55 @@ pub enum Command {
     Init {
         /// If set, creates a new folder with the given name and initializes the empty repository
         /// in that folder.
-        #[arg(short, long)]
+        #[arg(long = "name")]
         folder_name: Option<OsString>,
     },
+
     /// Creates a new blob and updates index
     Add {
-        /// Files to be added
+        /// Files to be staged for the next commit
         files: Vec<OsString>,
     },
-    /// Creates a new commit object representing the current index
-    Commit {
-        /// Adds a commit message
-        message: String,
-    },
-    /// Sets HEAD ref to specified commit
-    Checkout {
-        /// Reference or commit hash
-        reference: String,
+    /// Unstages files or resets to a previous commit, if no file is specified, all files are unstaged
+    Reset {
+        #[command(subcommand)]
+        command: Option<ResetCommand>,
     },
     /// Shows the files present in the index file
     LsFiles {
         /// Shows more detailed information for every file
         #[arg(short, long)]
         debug: bool,
+    },
+    /// Shows working tree status
+    Status,
+
+    /// Creates a new commit object representing the current index
+    Commit {
+        /// Adds a commit message
+        message: String,
+    },
+
+    /// Sets HEAD ref to specified commit
+    Checkout {
+        /// Reference or commit hash
+        reference: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ResetCommand {
+    /// Unstage specific files
+    Files {
+        /// Files to unstage
+        files: Vec<OsString>,
+    },
+    /// Reset to a previous commit
+    Commit {
+        /// Reset all files and working tree
+        #[arg(long)]
+        hard: bool,
+        /// Commit hash to reset to
+        commit_hash: String,
     },
 }

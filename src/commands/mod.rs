@@ -3,6 +3,8 @@ mod checkout;
 mod commit;
 mod init;
 mod ls_files;
+mod reset;
+mod status;
 
 use std::fs;
 
@@ -11,6 +13,8 @@ use checkout::checkout;
 use commit::commit;
 use init::init;
 use ls_files::ls_files;
+use reset::reset;
+use status::status;
 
 use crate::args::Command;
 use crate::{Constants, Result};
@@ -35,6 +39,8 @@ pub fn execute_command(command: &Command) -> Result<String> {
     match command {
         Command::Init { folder_name } => init(folder_name.as_deref()), // always returns an "already a git repository"
         Command::Add { files } => add(files),
+        Command::Reset { command } => reset(command.as_ref()),
+        Command::Status => status(),
         Command::Commit { message } => commit(message.as_ref()),
         Command::Checkout { reference } => checkout(reference),
         Command::LsFiles { debug } => ls_files(*debug),
