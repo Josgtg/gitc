@@ -1,5 +1,6 @@
 use crate::Result;
 
-pub fn commit(message: Option<&str>) -> Result<String> {
+#[allow(unused)]
+pub fn commit(message: &str) -> Result<String> {
     Ok("Commited changes successfully".into())
 }

@@ -17,7 +17,7 @@ pub enum Command {
     Init {
         /// If set, creates a new folder with the given name and initializes the empty repository
         /// in that folder.
-        #[arg(short)]
+        #[arg(short, long)]
         folder_name: Option<OsString>,
     },
     /// Creates a new blob and updates index
@@ -28,8 +28,7 @@ pub enum Command {
     /// Creates a new commit object representing the current index
     Commit {
         /// Adds a commit message
-        #[arg(short)]
-        message: Option<String>,
+        message: String,
     },
     /// Sets HEAD ref to specified commit
     Checkout {
@@ -38,11 +37,8 @@ pub enum Command {
     },
     /// Shows the files present in the index file
     LsFiles {
-        /// Show files staged for commit
-        #[arg(long)]
-        stage: bool,
         /// Shows more detailed information for every file
-        #[arg(long)]
+        #[arg(short, long)]
         debug: bool,
     }
 }

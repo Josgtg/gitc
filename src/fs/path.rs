@@ -31,7 +31,7 @@ pub fn read_gitignore(path: &Path) -> Result<HashSet<PathBuf>> {
     let gitignore = File::open(gitignore_path).map_err_with("could not open gitignore file")?;
 
     let reader = BufReader::new(gitignore);
-    for line in reader.lines().filter_map(|l| l.ok()) {
+    for line in reader.lines().map_while(Result::ok) {
         set.insert(PathBuf::from(line));
     }
 
@@ -44,7 +44,7 @@ pub fn read_gitignore(path: &Path) -> Result<HashSet<PathBuf>> {
 ///
 /// This function will return `None` if `base` was not a prefix of `path`.
 pub fn relative_path(path: &Path, base: &Path) -> Option<PathBuf> {
-    path.strip_prefix(base).map(|p| PathBuf::from(p)).ok()
+    path.strip_prefix(base).map(PathBuf::from).ok()
 }
 
 /// Returns the path divided by forward slashes.
@@ -60,10 +60,8 @@ pub fn format_path(path: &Path) -> OsString {
         formatted.push(p);
         prev = p;
     }
-    formatted.into()
+    formatted
 }
-
-///
 
 /// Returns all the paths of the files and subdirectories inside of `dir`.
 ///

@@ -35,7 +35,7 @@ impl IndexBuilder {
     }
 
     pub fn iter_index_entries(&self) -> Iter<IndexEntry> {
-        self.index.entries.iter()
+        self.index.entries()
     }
 }
 

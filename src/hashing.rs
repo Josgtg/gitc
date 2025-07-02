@@ -25,9 +25,15 @@ impl From<&Rc<[u8; 20]>> for Hash {
     }
 }
 
-impl Into<[u8; 20]> for Hash {
-    fn into(self) -> [u8; 20] {
-        *self.0
+impl From<Hash> for [u8; 20] {
+    fn from(value: Hash) -> Self {
+        *value.0
+    }
+}
+
+impl AsRef<[u8]> for Hash {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
     }
 }
 
@@ -38,14 +44,9 @@ impl Display for Hash {
     }
 }
 
-impl AsRef<[u8]> for Hash {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-}
-
 
 // Tests
+
 
 #[cfg(test)]
 mod tests {

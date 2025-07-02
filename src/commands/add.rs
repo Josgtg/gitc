@@ -5,11 +5,11 @@ use std::path::PathBuf;
 use crate::error::CustomResult;
 use crate::fs;
 use crate::hashing::Hash;
-use crate::index::{IndexBuilder, IndexEntry};
+use crate::index::{builder::IndexBuilder, IndexEntry};
 use crate::object::Object;
 use crate::{Constants, Result};
 
-const PATTERN_EVERY_FILE: &'static str = ".";
+const PATTERN_EVERY_FILE: &str = ".";
 
 type ObjectData = (PathBuf, Hash);
 
@@ -23,54 +23,56 @@ pub fn add(files: &[OsString]) -> Result<String> {
     let files_to_ignore =
         fs::path::read_gitignore(&folder_path).map_err_with("could not read .gitignore file")?;
 
-    let paths: Vec<PathBuf>;
-    // checking for "add all" pattern
-    if files
+    let paths: Vec<PathBuf> = if files
+        // checking for "add all" pattern
         .first()
         .expect("file did not have first element despite being checked for emptiness")
         == PATTERN_EVERY_FILE
     {
-        paths = fs::path::read_dir_paths(&folder_path)
-            .map_err_with("could not read paths in repository folder")?;
+        fs::path::read_dir_paths(&folder_path)
+            .map_err_with("could not read paths in repository folder")?
     } else {
-        paths = files.iter().map(|p| PathBuf::from(p)).collect();
-    }
+        files.iter().map(PathBuf::from).collect()
+    };
 
-    // Discarding ignored files
+    // Discarding ignored files, important to check as relative path
     let filtered_paths: Vec<PathBuf> = paths
         .into_iter()
         .map(|p| fs::path::relative_path(&p, &folder_path).unwrap_or(p))
         .filter(|p| !files_to_ignore.contains(p))
         .collect();
 
+    // reading all not ignored files as blob objects
     let mut objects = Vec::new();
     for p in filtered_paths {
         objects.extend(add_dir(p).map_err_with("failed to add dir")?);
     }
 
-
-
-    // updating index with the new files
+    // getting previous index to update it
     let previous_index = fs::index::read_index_file().map_err_with("could not read index file")?;
     let mut index_builder = IndexBuilder::from(previous_index);
 
+    // building a set containing hashes already in index to avoid adding a file twice
     let mut hashes_already_in_index: HashSet<Hash> = HashSet::new();
     for h in index_builder.iter_index_entries().map(|o| o.object_hash()) {
         hashes_already_in_index.insert(h);
     }
 
+    // adding index entries
     let mut index_entry: IndexEntry;
     for (p, o) in objects {
-        index_entry = IndexEntry::try_from_file(&p, o)
-            .map_err_with(format!("could not create index entry from file: {:?}", p))?;
-        if hashes_already_in_index.contains(&index_entry.object_hash()) {
+        if hashes_already_in_index.contains(&o) {
+            // file is already in index
             continue;
         }
+        index_entry = IndexEntry::try_from_file(&p, o)
+            .map_err_with(format!("could not create index entry from file: {:?}", p))?;
         index_builder.add_index_entry(index_entry);
     }
+
     let index = index_builder.build();
 
-    fs::index::write_index_file(index).map_err_with("could not write to index")?;
+    fs::index::write_index_file(index).map_err_with("could not write to index file")?;
 
     Ok("Added files successfully".into())
 }
@@ -81,9 +83,7 @@ fn add_dir(path: PathBuf) -> Result<Vec<ObjectData>> {
     let err_message = format!("could not add file when returning from add_dir: {path:?}");
     if !path.is_dir() {
         // is a file
-        return Ok(vec![
-            add_file(path).map_err_with(err_message)?
-        ]);
+        return Ok(vec![add_file(path).map_err_with(err_message)?]);
     }
 
     let mut objects = Vec::new();
@@ -103,8 +103,9 @@ fn add_dir(path: PathBuf) -> Result<Vec<ObjectData>> {
 // - It wasn't possible to create an Object from the file.
 // - It wasn't possible to write to the object dir.
 fn add_file(path: PathBuf) -> Result<ObjectData> {
-    let file =
-        std::fs::File::open(&path).map_err_with(format!("could not open path when trying to add file: {path:?}"))?;
+    let file = std::fs::File::open(&path).map_err_with(format!(
+        "could not open path when trying to add file: {path:?}"
+    ))?;
 
     let object = Object::try_from(file)
         .map_err_with(format!("could not create object from file: {path:?}").as_str())?;

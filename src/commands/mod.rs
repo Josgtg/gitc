@@ -35,8 +35,8 @@ pub fn execute_command(command: &Command) -> Result<String> {
     match command {
         Command::Init { folder_name } => init(folder_name.as_deref()), // always returns an "already a git repository"
         Command::Add { files } => add(files),
-        Command::Commit { message } => commit(message.as_deref()),
+        Command::Commit { message } => commit(message.as_ref()),
         Command::Checkout { reference } => checkout(reference),
-        Command::LsFiles { stage, debug } => ls_files(*stage, *debug),
+        Command::LsFiles { debug } => ls_files(*debug),
     }
 }
