@@ -8,6 +8,7 @@ mod hashing;
 mod index;
 mod object;
 mod utils;
+mod gitignore;
 
 use clap::Parser;
 pub use constants::*;

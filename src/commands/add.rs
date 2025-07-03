@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use crate::error::CustomResult;
 use crate::fs;
+use crate::gitignore;
 use crate::hashing::Hash;
 use crate::index::{IndexEntry, builder::IndexBuilder};
 use crate::object::Object;
@@ -18,10 +19,7 @@ pub fn add(files: &[OsString]) -> Result<String> {
         return Ok("There were no files to add".into());
     }
 
-    let folder_path = Constants::repository_folder_path();
-
-    let files_to_ignore =
-        fs::path::read_gitignore(&folder_path).map_err_with("could not read .gitignore file")?;
+    let root_path = Constants::repository_folder_path();
 
     let paths: Vec<PathBuf> = if files
         // checking for "add all" pattern
@@ -29,18 +27,14 @@ pub fn add(files: &[OsString]) -> Result<String> {
         .expect("file did not have first element despite being checked for emptiness")
         == PATTERN_EVERY_FILE
     {
-        fs::path::read_dir_paths(&folder_path)
+        fs::path::read_dir_paths(&root_path)
             .map_err_with("could not read paths in repository folder")?
     } else {
         files.iter().map(PathBuf::from).collect()
     };
 
     // Discarding ignored files, important to check as relative path
-    let filtered_paths: Vec<PathBuf> = paths
-        .into_iter()
-        .map(|p| fs::path::relative_path(&p, &folder_path).unwrap_or(p))
-        .filter(|p| !files_to_ignore.contains(p))
-        .collect();
+    let filtered_paths: Vec<PathBuf> = gitignore::not_in_gitignore(&root_path, paths).map_err_with("could not read get filtered files from .gitignore")?;
 
     // reading all not ignored files as blob objects
     let mut objects = Vec::new();

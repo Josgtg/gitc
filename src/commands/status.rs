@@ -8,7 +8,7 @@ use crate::error::CustomResult;
 use crate::hashing::Hash;
 use crate::index::IndexEntry;
 use crate::object::Object;
-use crate::{fs, Constants, Result};
+use crate::{fs, gitignore, Constants, Result};
 
 use crate::fs::index::read_index_file;
 
@@ -32,10 +32,10 @@ pub fn status() -> Result<String> {
 
     // Getting filtered files
     let root_path = Constants::repository_folder_path();
-    let files = fs::path::not_in_gitignore(
-        fs::path::read_dir_paths(&root_path)
-            .map_err_with("could not read root directory entries")?
-    )?;
+    let all_paths = fs::path::read_dir_paths(&root_path)
+            .map_err_with("could not read root directory entries")?;
+
+    let files = gitignore::not_in_gitignore(&root_path, all_paths)?;
 
     // Getting files from working tree
     let mut objects = Vec::new();
@@ -45,9 +45,9 @@ pub fn status() -> Result<String> {
         );
     }
 
-    let mut changes_staged = String::from("Changes staged for commit:\n");
+    let mut changes_staged = String::from("Changes to be commited:\n");
     let mut include_staged = false;
-    let mut changes_not_staged = String::from("Changes not staged for commit:\n");
+    let mut changes_not_staged = String::from("Untracked files:\n");
     let mut include_not_staged = false;
 
     // Checking differences
@@ -68,7 +68,7 @@ pub fn status() -> Result<String> {
             };
         } else {
             changes_not_staged
-                .push_str(format!("\tnew file: {}\n", path.to_string_lossy()).as_ref());
+                .push_str(format!("\t{}\n", path.to_string_lossy()).as_ref());
             include_not_staged = true;
         }
     }
@@ -81,10 +81,10 @@ pub fn status() -> Result<String> {
 
     let mut status = String::new();
     if include_staged {
-        status.push_str(format!("{}", changes_staged.bright_green()).as_ref());
+        status.push_str(format!("{}", changes_staged.green()).as_ref());
     }
     if include_not_staged {
-        status.push_str(format!("\n\n{}", changes_not_staged.bright_red()).as_ref());
+        status.push_str(format!("\n{}", changes_not_staged.red()).as_ref());
     }
     Ok(status)
 }

@@ -1,61 +1,10 @@
-use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::ffi::OsString;
-use std::fs::File;
-use std::io::BufRead;
-use std::io::BufReader;
 use std::path::Path;
 use std::path::PathBuf;
 
 use crate::error::CustomResult;
-use crate::Constants;
 use crate::Result;
-
-/// Reads a .gitignore file inside of `path`, returning a HashSet including all the files listed (read by line).
-///
-/// This function will skip files in the gitignore that have text that could not be interpreted as a `String`.
-///
-/// # Errors
-///
-/// This function will fail if the .gitignore file could not been opened.
-pub fn read_gitignore(path: &Path) -> Result<HashSet<PathBuf>> {
-    let mut set: HashSet<PathBuf> = HashSet::new();
-    // always adding repository path as a path to ignore no matter what
-    set.insert(PathBuf::from(Constants::REPOSITORY_FOLDER_NAME));
-
-    let gitignore_path = path.join(Constants::GITIGNORE_FILE_NAME);
-    if !std::fs::exists(&gitignore_path).map_err_with("could not check gitignore file existance")? {
-        return Ok(set);
-    }
-
-    let gitignore = File::open(gitignore_path).map_err_with("could not open gitignore file")?;
-
-    let reader = BufReader::new(gitignore);
-    for line in reader.lines().map_while(Result::ok) {
-        set.insert(PathBuf::from(line));
-    }
-
-    Ok(set)
-}
-
-/// Returns a list of files not in the .gitignore file.
-///
-/// This function looks for a .gitignore file in the path returned by
-/// Constants::repository_folder_path.
-///
-/// # Errors
-///
-/// This function can fail if the .gitignore file could not be read.
-pub fn not_in_gitignore(files: Vec<PathBuf>) -> Result<Vec<PathBuf>> {
-    let root_path = Constants::repository_folder_path();
-    let files_to_ignore =
-        read_gitignore(&root_path).map_err_with("could not read .gitignore file")?;
-    Ok(files
-        .into_iter()
-        .map(|p| relative_path(&p, &root_path).unwrap_or(p))
-        .filter(|p| !files_to_ignore.contains(p))
-        .collect())
-}
 
 /// Returns `path` relative to `base`.
 ///
@@ -80,6 +29,21 @@ pub fn format_path(path: &Path) -> OsString {
         prev = p;
     }
     formatted
+}
+
+/// Returns the path without useless characters.
+///
+/// If the `absolute` flag is set, it will not strip the forward slash from the path.
+pub fn clean_path(path: PathBuf, absolute: bool) -> PathBuf {
+    let cleaned: PathBuf = if path.starts_with("./") {
+        path.strip_prefix("./").unwrap().into()
+    } else if path.starts_with("/") && !absolute {
+        path.strip_prefix("/").unwrap().into()
+    } else {
+        path
+    };
+
+    cleaned
 }
 
 /// Returns all the paths of the files and subdirectories inside of `dir`.
