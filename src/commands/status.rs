@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use std::ffi::OsStr;
-use std::io::{Cursor, Read};
+use std::io::Read;
 use std::path::PathBuf;
 
 use colored::Colorize;
@@ -104,9 +104,8 @@ pub fn search_dir(path: PathBuf) -> Result<Vec<ObjectData>> {
 
         let mut data = Vec::new();
         file.read_to_end(&mut data).map_err_with("could not read file")?;
-        let mut cursor = Cursor::new(data);
 
-        let object = Object::from_bytes(&mut cursor).map_err_with("could not decode object")?;
+        let object = Object::from_bytes(&data).map_err_with("could not decode object")?;
 
         Ok(vec![(path, object)])
     }

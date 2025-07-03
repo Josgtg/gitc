@@ -1,4 +1,4 @@
-use std::io::{BufRead, Cursor, Write};
+use std::io::{Cursor, Read, Write};
 use std::rc::Rc;
 use std::slice::Iter;
 
@@ -74,8 +74,9 @@ impl Byteable for Index {
     /// This function will fail if:
     /// - There was an error reading from the bytes.
     /// - The format of the bytes was not the expected one.
-    fn from_bytes<T: BufRead>(cursor: &mut T) -> Result<Self> {
+    fn from_bytes(bytes: &[u8]) -> Result<Self> {
         let mut builder = IndexBuilder::new();
+        let mut cursor = Cursor::new(bytes);
 
         let dirc = cursor
             .read_u32::<BigEndian>()
@@ -105,9 +106,15 @@ impl Byteable for Index {
             .map_err_with("could not read entries_number when decoding index")?;
 
         let mut entry: IndexEntry;
+        let mut bytes: &[u8];
+        let mut position: usize;
         for _ in 0..entries_number {
-            entry = IndexEntry::from_bytes(cursor)
+            position = cursor.position() as usize;
+            bytes = &cursor.get_ref()[position..];
+            entry = IndexEntry::from_bytes(bytes)
                 .map_err_with("failed to build an index entry when decoding index")?;
+            // Advancing to the next index entry
+            cursor.set_position((position + entry.len()) as u64);
             builder.add_index_entry(entry);
         }
 

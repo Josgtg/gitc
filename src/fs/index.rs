@@ -1,5 +1,4 @@
 use std::fs;
-use std::io::Cursor;
 
 use crate::byteable::Byteable;
 use crate::error::CustomResult;
@@ -15,9 +14,8 @@ pub fn read_index_file() -> Result<Index> {
     }
 
     let data = fs::read(index_path).map_err_with("could not read index file data")?;
-    let mut cursor = Cursor::new(data);
 
-    let index = Index::from_bytes(&mut cursor)
+    let index = Index::from_bytes(&data)
         .map_err_with("could not create index from index file's data")?;
 
     Ok(index)

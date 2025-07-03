@@ -1,7 +1,5 @@
 use std::collections::HashSet;
 use std::ffi::OsString;
-use std::io::Cursor;
-use std::io::Read;
 use std::path::PathBuf;
 
 use crate::byteable::Byteable;
@@ -103,15 +101,9 @@ fn add_dir(path: PathBuf) -> Result<Vec<ObjectData>> {
 // - It wasn't possible to create an Object from the file.
 // - It wasn't possible to write to the object dir.
 fn add_file(path: PathBuf) -> Result<ObjectData> {
-    let mut file = std::fs::File::open(&path).map_err_with(format!(
-        "could not open path when trying to add file: {path:?}"
-    ))?;
+    let data = std::fs::read(&path).map_err_with(format!("could not read file: {:?}", path))?;
 
-    let mut data = Vec::new();
-    file.read_to_end(&mut data).map_err_with("could not read file")?;
-    let mut cursor = Cursor::new(data);
-
-    let object = Object::from_bytes(&mut cursor)
+    let object = Object::from_bytes(&data)
         .map_err_with(format!("could not create object from file: {path:?}").as_str())?;
     let hash = fs::object::write_to_object_dir(object).map_err_with(
         format!("could not get file hash because writing to object dir failed when trying to add file: {path:?}"),

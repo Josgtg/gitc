@@ -1,8 +1,5 @@
 use std::fs::File;
-use std::io::BufRead;
-use std::io::Cursor;
-use std::io::Read;
-use std::io::Write;
+use std::io::{BufRead, Cursor, Read, Write};
 use std::rc::Rc;
 
 use byteorder::WriteBytesExt;
@@ -82,7 +79,9 @@ pub fn blob_as_bytes(data: &[u8]) -> Result<Rc<[u8]>> {
 // This function will fail if:
 // - The data could not be read.
 // - The data did not have a valid format.
-pub fn blob_from_bytes<T: BufRead>(cursor: &mut T) -> Result<Object> {
+pub fn blob_from_bytes(bytes: &[u8]) -> Result<Object> {
+    let mut cursor = Cursor::new(bytes);
+
     // reading kind
     let mut kind_buf = Vec::new();
     cursor

@@ -38,8 +38,8 @@ impl Byteable for Object {
         }
     }
 
-    fn from_bytes<T: BufRead>(cursor: &mut T) -> Result<Self> {
+    fn from_bytes(bytes: &[u8]) -> Result<Self> {
         // Must identify object in a way before deciding which function to use
-        super::blob_from_bytes(cursor)
+        super::blob_from_bytes(bytes)
     }
 }

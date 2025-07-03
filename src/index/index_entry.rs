@@ -1,7 +1,7 @@
 use std::ffi::OsStr;
 use std::fmt::{Debug, Display};
 use std::fs::File;
-use std::io::{BufRead, Cursor};
+use std::io::{BufRead, Cursor, Read};
 use std::os::unix::ffi::OsStringExt;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
@@ -45,6 +45,18 @@ impl IndexEntry {
         self.object_hash.clone()
     }
 
+    /// Returns the length (in bytes) of this index entry.
+    pub fn len(&self) -> usize {
+        // 62 fixed bytes, variable path length and null byte
+        let len = 62 + self.path_len() + 1;
+        len + (len.next_multiple_of(8) - len)
+    }
+
+    /// Returns a reference to the path of this index entry.
+    pub fn path(&self) -> &OsStr {
+        self.path.as_os_str()
+    }
+
     /// Tries to build an index entry from the file at `path` and the hash of the blob object for said file.
     ///
     /// # Errors
@@ -82,17 +94,6 @@ impl IndexEntry {
                 .unwrap_or(file_path.into())
                 .into(),
         })
-    }
-
-    /// Returns the length (in bytes) of this index entry.
-    pub fn len(&self) -> usize {
-        // 62 fixed bytes, variable path length and null byte
-        62 + self.path_len() + 1
-    }
-
-    /// Returns a reference to the path of this index entry.
-    pub fn path(&self) -> &OsStr {
-        self.path.as_os_str()
     }
 
     const ASSUME_VALID_FLAG_POSITION: u16 = 0b1101_1111_1111_1111;
@@ -218,7 +219,9 @@ impl Byteable for IndexEntry {
     /// This function will fail if:
     /// - There was an error reading from the bytes.
     /// - The format of the bytes was not the expected one.
-    fn from_bytes<T: BufRead>(cursor: &mut T) -> Result<Self> {
+    fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        let mut cursor = Cursor::new(bytes);
+
         let entry = IndexEntry {
             creation_time_sec: cursor
                 .read_u32::<BigEndian>()
