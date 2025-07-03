@@ -16,7 +16,9 @@ use crate::{Constants, Result};
 /// This function can fail if there was not possible to create and write to the file or the object
 /// couldn't be compressed.
 pub fn write_to_object_dir(object: Object) -> Result<Hash> {
-    let data = object.as_bytes().map_err_with("could not encode object data when writing to object dir")?;
+    let data = object
+        .as_bytes()
+        .map_err_with("could not encode object data when writing to object dir")?;
     let compressed = zlib::compress(data.as_ref())
         .map_err_with("could not compress object when trying to write to object dir")?;
     let hash = Hash::new(data.as_ref());

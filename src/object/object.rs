@@ -10,8 +10,8 @@ use byteorder::WriteBytesExt;
 use crate::byteable::Byteable;
 use crate::error::CustomResult;
 use crate::hashing::Hash;
-use crate::{Error, Result};
 use crate::utils::zlib;
+use crate::{Error, Result};
 
 use super::ObjectType;
 
@@ -47,13 +47,16 @@ impl Object {
     pub fn decompress(kind: ObjectType, data: &[u8]) -> Result<Object> {
         Ok(Object {
             kind,
-            data: zlib::decompress(data.as_ref()).map_err_with("could not decompress data to create an object")?,
+            data: zlib::decompress(data.as_ref())
+                .map_err_with("could not decompress data to create an object")?,
         })
     }
 
     /// Returns the hash for this object binary data.
     pub fn hash(&self) -> Result<Hash> {
-        let data = self.as_bytes().map_err_with("could not encode object when getting its hash")?;
+        let data = self
+            .as_bytes()
+            .map_err_with("could not encode object when getting its hash")?;
         Ok(Hash::new(data.as_ref()))
     }
 }

@@ -7,9 +7,9 @@ use std::io::BufReader;
 use std::path::Path;
 use std::path::PathBuf;
 
+use crate::error::CustomResult;
 use crate::Constants;
 use crate::Result;
-use crate::error::CustomResult;
 
 /// Reads a .gitignore file inside of `path`, returning a HashSet including all the files listed (read by line).
 ///
@@ -36,6 +36,25 @@ pub fn read_gitignore(path: &Path) -> Result<HashSet<PathBuf>> {
     }
 
     Ok(set)
+}
+
+/// Returns a list of files not in the .gitignore file.
+///
+/// This function looks for a .gitignore file in the path returned by
+/// Constants::repository_folder_path.
+///
+/// # Errors
+///
+/// This function can fail if the .gitignore file could not be read.
+pub fn not_in_gitignore(files: Vec<PathBuf>) -> Result<Vec<PathBuf>> {
+    let root_path = Constants::repository_folder_path();
+    let files_to_ignore =
+        read_gitignore(&root_path).map_err_with("could not read .gitignore file")?;
+    Ok(files
+        .into_iter()
+        .map(|p| relative_path(&p, &root_path).unwrap_or(p))
+        .filter(|p| !files_to_ignore.contains(p))
+        .collect())
 }
 
 /// Returns `path` relative to `base`.
