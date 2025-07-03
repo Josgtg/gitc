@@ -1,9 +1,11 @@
 use std::collections::HashSet;
 use std::ffi::OsStr;
+use std::io::{Cursor, Read};
 use std::path::PathBuf;
 
 use colored::Colorize;
 
+use crate::byteable::Byteable;
 use crate::error::CustomResult;
 use crate::hashing::Hash;
 use crate::index::IndexEntry;
@@ -33,16 +35,14 @@ pub fn status() -> Result<String> {
     // Getting filtered files
     let root_path = Constants::repository_folder_path();
     let all_paths = fs::path::read_dir_paths(&root_path)
-            .map_err_with("could not read root directory entries")?;
+        .map_err_with("could not read root directory entries")?;
 
     let files = gitignore::not_in_gitignore(&root_path, all_paths)?;
 
     // Getting files from working tree
     let mut objects = Vec::new();
     for p in files.into_iter() {
-        objects.extend(
-            search_dir(p).map_err_with("could not get working tree objects")?
-        );
+        objects.extend(search_dir(p).map_err_with("could not get working tree objects")?);
     }
 
     let mut changes_staged = String::from("Changes to be commited:\n");
@@ -51,13 +51,16 @@ pub fn status() -> Result<String> {
     let mut include_not_staged = false;
 
     // Checking differences
+    let mut object_hash: Hash;
     for (path, object) in objects {
         if paths_set.contains(path.as_os_str()) {
-            if hashes_set.contains(
-                &object
-                    .hash()
-                    .map_err_with("could not get object hash to compare with index entry")?,
-            ) {
+            object_hash = Hash::new(
+                object
+                    .as_bytes()
+                    .map_err_with("could not encode object")?
+                    .as_ref(),
+            );
+            if hashes_set.contains(&object_hash) {
                 changes_staged
                     .push_str(format!("\tmodified: {}\n", path.to_string_lossy()).as_ref());
                 include_staged = true;
@@ -67,16 +70,15 @@ pub fn status() -> Result<String> {
                 include_not_staged = true;
             };
         } else {
-            changes_not_staged
-                .push_str(format!("\t{}\n", path.to_string_lossy()).as_ref());
+            changes_not_staged.push_str(format!("\t{}\n", path.to_string_lossy()).as_ref());
             include_not_staged = true;
         }
     }
     changes_staged.pop();
     changes_not_staged.pop();
 
-    if !include_staged && ! include_not_staged {
-        return Ok("working tree clean, nothing to commit".into())
+    if !include_staged && !include_not_staged {
+        return Ok("working tree clean, nothing to commit".into());
     }
 
     let mut status = String::new();
@@ -95,10 +97,17 @@ pub fn search_dir(path: PathBuf) -> Result<Vec<ObjectData>> {
         for e in std::fs::read_dir(path)? {
             objects.extend(search_dir(e?.path())?)
         }
+
         Ok(objects)
     } else {
-        let file = std::fs::File::open(&path)?;
-        let object = Object::try_from(file)?;
+        let mut file = std::fs::File::open(&path).map_err_with("could not open file")?;
+
+        let mut data = Vec::new();
+        file.read_to_end(&mut data).map_err_with("could not read file")?;
+        let mut cursor = Cursor::new(data);
+
+        let object = Object::from_bytes(&mut cursor).map_err_with("could not decode object")?;
+
         Ok(vec![(path, object)])
     }
 }

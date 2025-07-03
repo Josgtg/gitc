@@ -1,7 +1,8 @@
 #[allow(clippy::module_inception)]
 mod object;
 
-mod object_type;
+mod blob;
+
+use blob::*;
 
 pub use object::Object;
-pub use object_type::ObjectType;
