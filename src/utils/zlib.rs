@@ -6,7 +6,7 @@ use flate2::bufread::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 
 use crate::Result;
-use crate::error::CustomResult;
+use crate::error::ResultContext;
 
 /// Compresses `bytes` using a zlib encoder.
 ///
@@ -17,10 +17,10 @@ pub fn compress(bytes: &[u8]) -> Result<Rc<[u8]>> {
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
     encoder
         .write_all(bytes)
-        .map_err_with("failed to write to encoder when compressing data")?;
+        .add_context("failed to write to encoder when compressing data")?;
     let compressed = encoder
         .finish()
-        .map_err_with("could not finalize compression")?
+        .add_context("could not finalize compression")?
         .into();
 
     Ok(compressed)
@@ -36,7 +36,7 @@ pub fn decompress(bytes: &[u8]) -> Result<Rc<[u8]>> {
     let mut decoder = ZlibDecoder::new(bytes);
     decoder
         .read_to_end(&mut buf)
-        .map_err_with("could not read data when decompressing data")?;
+        .add_context("could not read data when decompressing data")?;
 
     Ok(buf.into())
 }

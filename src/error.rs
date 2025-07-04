@@ -5,11 +5,11 @@ use std::rc::Rc;
 pub enum Error {
     #[error("method is not implemented")]
     NotImplemented,
-    #[error("{message}\ncaused by: {source:?}")]
-    Custom {
+    #[error("{message}\ncaused by: {backtrace:?}")]
+    WithContext {
         message: Rc<str>,
         #[source]
-        source: Box<Error>,
+        backtrace: Box<Error>,
     },
     #[error("there was an error during the execution of the program")]
     Generic(Rc<str>),
@@ -37,12 +37,12 @@ pub type Result<T, E = Error> = core::result::Result<T, E>;
 impl Error {
     pub fn print_backtrace(&self) {
         let mut err = self;
-        if let Self::Custom { message, source } = err {
+        if let Self::WithContext { message, backtrace} = err {
             eprintln!("error: {message}");
-            err = source;
-            while let Self::Custom { message, source } = err {
+            err = backtrace;
+            while let Self::WithContext { message, backtrace} = err {
                 eprintln!("caused by: {message}");
-                err = source;
+                err = backtrace;
             }
             eprintln!("caused by: {err:?}");
         } else {
@@ -51,28 +51,28 @@ impl Error {
     }
 }
 
-pub trait CustomError {
-    fn custom(self, message: impl AsRef<str>) -> Error
+pub trait Context {
+    fn add_context(self, message: impl AsRef<str>) -> Error
     where
         Self: Into<Error>;
 }
 
-impl<E: Into<Error>> CustomError for E {
-    fn custom(self, message: impl AsRef<str>) -> Error {
-        Error::Custom {
+impl<E: Into<Error>> Context for E {
+    fn add_context(self, message: impl AsRef<str>) -> Error {
+        Error::WithContext {
             message: message.as_ref().into(),
-            source: Box::new(self.into()),
+            backtrace: Box::new(self.into()),
         }
     }
 }
 
-pub trait CustomResult<T> {
-    fn map_err_with(self, message: impl AsRef<str>) -> Result<T>;
+pub trait ResultContext<T> {
+    fn add_context(self, message: impl AsRef<str>) -> Result<T>;
 }
 
-impl<T, E: Into<Error>> CustomResult<T> for core::result::Result<T, E> {
+impl<T, E: Into<Error>> ResultContext<T> for core::result::Result<T, E> {
     /// Adds a context message to this error.
-    fn map_err_with(self, message: impl AsRef<str>) -> Result<T> {
-        self.map_err(|e| e.custom(message))
+    fn add_context(self, message: impl AsRef<str>) -> Result<T> {
+        self.map_err(|e| e.add_context(message))
     }
 }

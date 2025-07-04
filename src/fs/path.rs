@@ -3,7 +3,7 @@ use std::ffi::OsString;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::error::CustomResult;
+use crate::error::ResultContext;
 use crate::Result;
 
 /// Returns `path` relative to `base`.
@@ -56,7 +56,7 @@ pub fn clean_path(path: PathBuf, absolute: bool) -> PathBuf {
 /// Could not get the files inside of `dir`.
 pub fn read_dir_paths(path: &Path) -> Result<Vec<PathBuf>> {
     let mut paths = Vec::new();
-    let entries = std::fs::read_dir(path).map_err_with("could not get directory entries")?;
+    let entries = std::fs::read_dir(path).add_context("could not get directory entries")?;
     for e in entries {
         paths.push(e?.path());
     }

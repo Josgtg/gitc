@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use colored::Colorize;
 
 use crate::byteable::Byteable;
-use crate::error::CustomResult;
+use crate::error::ResultContext;
 use crate::hashing::Hash;
 use crate::index::IndexEntry;
 use crate::object::Object;
@@ -27,7 +27,7 @@ type ObjectData = (PathBuf, Object);
 /// - Could not get object data from a file in the working tree.
 pub fn status() -> Result<String> {
     // Getting index data an placing it in hash sets for easy access
-    let index = read_index_file().map_err_with("could not read from index file")?;
+    let index = read_index_file().add_context("could not read from index file")?;
     let paths_set: HashSet<&OsStr> = HashSet::from_iter(index.entries().map(IndexEntry::path));
     let hashes_set: HashSet<Hash> =
         HashSet::from_iter(index.entries().map(IndexEntry::object_hash));
@@ -35,14 +35,14 @@ pub fn status() -> Result<String> {
     // Getting filtered files
     let root_path = Constants::repository_folder_path();
     let all_paths = fs::path::read_dir_paths(&root_path)
-        .map_err_with("could not read root directory entries")?;
+        .add_context("could not read root directory entries")?;
 
     let files = gitignore::not_in_gitignore(&root_path, all_paths)?;
 
     // Getting files from working tree
     let mut objects = Vec::new();
     for p in files.into_iter() {
-        objects.extend(search_dir(p).map_err_with("could not get working tree objects")?);
+        objects.extend(search_dir(p).add_context("could not get working tree objects")?);
     }
 
     let mut changes_staged = String::from("Changes to be commited:\n");
@@ -57,7 +57,7 @@ pub fn status() -> Result<String> {
             object_hash = Hash::new(
                 object
                     .as_bytes()
-                    .map_err_with("could not encode object")?
+                    .add_context("could not encode object")?
                     .as_ref(),
             );
             if hashes_set.contains(&object_hash) {
@@ -100,12 +100,12 @@ pub fn search_dir(path: PathBuf) -> Result<Vec<ObjectData>> {
 
         Ok(objects)
     } else {
-        let mut file = std::fs::File::open(&path).map_err_with("could not open file")?;
+        let mut file = std::fs::File::open(&path).add_context("could not open file")?;
 
         let mut data = Vec::new();
-        file.read_to_end(&mut data).map_err_with("could not read file")?;
+        file.read_to_end(&mut data).add_context("could not read file")?;
 
-        let object = Object::from_bytes(&data).map_err_with("could not decode object")?;
+        let object = Object::from_bytes(&data).add_context("could not decode object")?;
 
         Ok(vec![(path, object)])
     }

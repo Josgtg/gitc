@@ -3,7 +3,7 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 
 use crate::byteable::Byteable;
-use crate::error::CustomResult;
+use crate::error::ResultContext;
 use crate::fs;
 use crate::gitignore;
 use crate::hashing::Hash;
@@ -29,25 +29,25 @@ pub fn add(files: &[OsString]) -> Result<String> {
         == PATTERN_EVERY_FILE
     {
         fs::path::read_dir_paths(&root_path)
-            .map_err_with("could not read paths in repository folder")?
+            .add_context("could not read paths in repository folder")?
     } else {
         files.iter().map(PathBuf::from).collect()
     };
 
     // Discarding ignored files, important to check as relative path
-    let filtered_paths: Vec<PathBuf> = gitignore::not_in_gitignore(&root_path, paths).map_err_with("could not read get filtered files from .gitignore")?;
+    let filtered_paths: Vec<PathBuf> = gitignore::not_in_gitignore(&root_path, paths).add_context("could not read get filtered files from .gitignore")?;
 
     // reading all not ignored files as blob objects
     let mut objects = Vec::new();
     for p in filtered_paths {
-        objects.extend(add_dir(p).map_err_with("failed to add dir")?);
+        objects.extend(add_dir(p).add_context("failed to add dir")?);
     }
 
     // ordering entries in lexicographical order
     objects.sort_by(|(p1, _), (p2, _)| PathBuf::cmp(p1, p2));
 
     // getting previous index to update it
-    let previous_index = fs::index::read_index_file().map_err_with("could not read index file")?;
+    let previous_index = fs::index::read_index_file().add_context("could not read index file")?;
     let mut index_builder = IndexBuilder::from(previous_index);
 
     // building a set containing hashes already in index to avoid adding a file twice
@@ -64,13 +64,13 @@ pub fn add(files: &[OsString]) -> Result<String> {
             continue;
         }
         index_entry = IndexEntry::try_from_file(&p, o)
-            .map_err_with(format!("could not create index entry from file: {:?}", p))?;
+            .add_context(format!("could not create index entry from file: {:?}", p))?;
         index_builder.add_index_entry(index_entry);
     }
 
     let index = index_builder.build();
 
-    fs::index::write_index_file(index).map_err_with("could not write to index file")?;
+    fs::index::write_index_file(index).add_context("could not write to index file")?;
 
     Ok("Added files successfully".into())
 }
@@ -81,7 +81,7 @@ fn add_dir(path: PathBuf) -> Result<Vec<ObjectData>> {
     let err_message = format!("could not add file when returning from add_dir: {path:?}");
     if !path.is_dir() {
         // is a file
-        return Ok(vec![add_file(path).map_err_with(err_message)?]);
+        return Ok(vec![add_file(path).add_context(err_message)?]);
     }
 
     let mut objects = Vec::new();
@@ -101,11 +101,11 @@ fn add_dir(path: PathBuf) -> Result<Vec<ObjectData>> {
 // - It wasn't possible to create an Object from the file.
 // - It wasn't possible to write to the object dir.
 fn add_file(path: PathBuf) -> Result<ObjectData> {
-    let data = std::fs::read(&path).map_err_with(format!("could not read file: {:?}", path))?;
+    let data = std::fs::read(&path).add_context(format!("could not read file: {:?}", path))?;
 
     let object = Object::from_bytes(&data)
-        .map_err_with(format!("could not create object from file: {path:?}").as_str())?;
-    let hash = fs::object::write_to_object_dir(object).map_err_with(
+        .add_context(format!("could not create object from file: {path:?}").as_str())?;
+    let hash = fs::object::write_to_object_dir(object).add_context(
         format!("could not get file hash because writing to object dir failed when trying to add file: {path:?}"),
     )?;
 

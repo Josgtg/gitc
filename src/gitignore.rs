@@ -4,7 +4,7 @@ use std::fs::File;
 use std::collections::HashSet;
 
 use crate::fs::path::{clean_path, relative_path};
-use crate::error::CustomResult;
+use crate::error::ResultContext;
 use crate::{Constants, Result};
 
 
@@ -21,11 +21,11 @@ fn read_gitignore(path: &Path) -> Result<HashSet<PathBuf>> {
     set.insert(PathBuf::from(Constants::REPOSITORY_FOLDER_NAME));
 
     let gitignore_path = path.join(Constants::GITIGNORE_FILE_NAME);
-    if !std::fs::exists(&gitignore_path).map_err_with("could not check gitignore file existance")? {
+    if !std::fs::exists(&gitignore_path).add_context("could not check gitignore file existance")? {
         return Ok(set);
     }
 
-    let gitignore = File::open(gitignore_path).map_err_with("could not open gitignore file")?;
+    let gitignore = File::open(gitignore_path).add_context("could not open gitignore file")?;
 
     let reader = BufReader::new(gitignore);
     let mut path: PathBuf;
@@ -52,7 +52,7 @@ pub fn not_in_gitignore(path: &Path, paths: Vec<PathBuf>) -> Result<Vec<PathBuf>
     ]);
 
     let files_to_ignore =
-        read_gitignore(path).map_err_with("could not read .gitignore file")?;
+        read_gitignore(path).add_context("could not read .gitignore file")?;
 
     let relative_paths: Vec<PathBuf> = paths.into_iter().map(|p| relative_path(&p, path).unwrap_or(p)).collect();
 
