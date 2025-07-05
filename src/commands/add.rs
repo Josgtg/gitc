@@ -1,19 +1,17 @@
 use std::collections::HashSet;
 use std::ffi::OsString;
 use std::path::PathBuf;
+use std::rc::Rc;
 
 use crate::byteable::Byteable;
 use crate::error::ResultContext;
 use crate::fs;
 use crate::gitignore;
 use crate::hashing::Hash;
-use crate::index::{IndexEntry, builder::IndexBuilder};
-use crate::object::Object;
+use crate::index::{builder::IndexBuilder, IndexEntry};
 use crate::{Constants, Result};
 
 const PATTERN_EVERY_FILE: &str = ".";
-
-type ObjectData = (PathBuf, Hash);
 
 pub fn add(files: &[OsString]) -> Result<String> {
     if files.is_empty() {
@@ -35,16 +33,15 @@ pub fn add(files: &[OsString]) -> Result<String> {
     };
 
     // Discarding ignored files, important to check as relative path
-    let filtered_paths: Vec<PathBuf> = gitignore::not_in_gitignore(&root_path, paths).add_context("could not read get filtered files from .gitignore")?;
+    let filtered_paths: Vec<PathBuf> = gitignore::not_in_gitignore(&root_path, paths)
+        .add_context("could not read get filtered files from .gitignore")?;
 
-    // reading all not ignored files as blob objects
-    let mut objects = Vec::new();
-    for p in filtered_paths {
-        objects.extend(add_dir(p).add_context("failed to add dir")?);
-    }
+    // reading all (not ignored) files as blob objects
+    let mut objects =
+        fs::object::as_objects(filtered_paths).add_context("could not get objecs")?;
 
     // ordering entries in lexicographical order
-    objects.sort_by(|(p1, _), (p2, _)| PathBuf::cmp(p1, p2));
+    objects.sort_by(|o1, o2| PathBuf::cmp(&o1.path, &o2.path));
 
     // getting previous index to update it
     let previous_index = fs::index::read_index_file().add_context("could not read index file")?;
@@ -58,13 +55,23 @@ pub fn add(files: &[OsString]) -> Result<String> {
 
     // adding index entries
     let mut index_entry: IndexEntry;
-    for (p, o) in objects {
-        if hashes_already_in_index.contains(&o) {
+    let mut path: PathBuf;
+    let mut hash: Hash;
+    let mut bytes: Rc<[u8]>;
+    for o in objects {
+        path = o.path;
+        bytes = o.object
+                .as_bytes()
+                .add_context(format!("could not encode object for file: {:?}", path))?;
+        hash = Hash::new(bytes.as_ref());
+        if hashes_already_in_index.contains(&hash) {
             // file is already in index
             continue;
         }
-        index_entry = IndexEntry::try_from_file(&p, o)
-            .add_context(format!("could not create index entry from file: {:?}", p))?;
+        index_entry = IndexEntry::try_from_file(&path, hash).add_context(format!(
+            "could not create index entry from file: {:?}",
+            &path
+        ))?;
         index_builder.add_index_entry(index_entry);
     }
 
@@ -73,41 +80,4 @@ pub fn add(files: &[OsString]) -> Result<String> {
     fs::index::write_index_file(index).add_context("could not write to index file")?;
 
     Ok("Added files successfully".into())
-}
-
-/// This function calls itself recursively for every subdirectory inside of `dir`, until there are
-/// no more subdirectories, calling `add_file` for every file inside `dir`.
-fn add_dir(path: PathBuf) -> Result<Vec<ObjectData>> {
-    let err_message = format!("could not add file when returning from add_dir: {path:?}");
-    if !path.is_dir() {
-        // is a file
-        return Ok(vec![add_file(path).add_context(err_message)?]);
-    }
-
-    let mut objects = Vec::new();
-    for p in fs::path::read_dir_paths(&path)? {
-        objects.extend(add_dir(p)?);
-    }
-    Ok(objects)
-}
-
-// Writes a file to the object dir, returning the object hash and the path of the file the object
-// represents.
-//
-// # Errors
-//
-// This function can fail if:
-// - The file in `path` couldn't be opened.
-// - It wasn't possible to create an Object from the file.
-// - It wasn't possible to write to the object dir.
-fn add_file(path: PathBuf) -> Result<ObjectData> {
-    let data = std::fs::read(&path).add_context(format!("could not read file: {:?}", path))?;
-
-    let object = Object::from_bytes(&data)
-        .add_context(format!("could not create object from file: {path:?}").as_str())?;
-    let hash = fs::object::write_to_object_dir(object).add_context(
-        format!("could not get file hash because writing to object dir failed when trying to add file: {path:?}"),
-    )?;
-
-    Ok((path, hash))
 }

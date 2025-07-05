@@ -63,6 +63,18 @@ pub fn read_dir_paths(path: &Path) -> Result<Vec<PathBuf>> {
     Ok(paths)
 }
 
+// Returns the files in `path` that are not inside a .gitignore file in the same directory.
+//
+// # Errors
+//
+// This function can fail if it couldn't get the files inside `path` or could not filter from the
+// gitignore.
+pub fn read_not_ignored_paths(path: &Path) -> Result<Vec<PathBuf>> {
+    let all_paths = read_dir_paths(&path)
+        .add_context("could not read root directory entries")?;
+    Ok(crate::gitignore::not_in_gitignore(&path, all_paths)?)
+}
+
 // Tests
 
 #[cfg(test)]

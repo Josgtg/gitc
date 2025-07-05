@@ -1,20 +1,31 @@
 use std::collections::HashSet;
 use std::ffi::OsStr;
-use std::io::Read;
 use std::path::PathBuf;
 
 use colored::Colorize;
 
-use crate::byteable::Byteable;
 use crate::error::ResultContext;
 use crate::hashing::Hash;
 use crate::index::IndexEntry;
-use crate::object::Object;
-use crate::{fs, gitignore, Constants, Result};
+use crate::{fs, Constants, Result};
 
 use crate::fs::index::read_index_file;
 
-type ObjectData = (PathBuf, Object);
+struct FileStatus {
+    path: PathBuf,
+    status: Status,
+    tracked: bool,
+}
+
+enum Status {
+    New,
+    Modified,
+    Deleted,
+    Moved {
+        previous: PathBuf
+    },
+    Unchanged,
+}
 
 /// Returns a string with the status of the repository. It lists:
 /// - The changes respective to the last commit.
@@ -25,6 +36,7 @@ type ObjectData = (PathBuf, Object);
 /// This function can fail if:
 /// - The index file couldn't be read.
 /// - Could not get object data from a file in the working tree.
+#[allow(unused)]
 pub fn status() -> Result<String> {
     // Getting index data an placing it in hash sets for easy access
     let index = read_index_file().add_context("could not read from index file")?;
@@ -32,18 +44,13 @@ pub fn status() -> Result<String> {
     let hashes_set: HashSet<Hash> =
         HashSet::from_iter(index.entries().map(IndexEntry::object_hash));
 
-    // Getting filtered files
     let root_path = Constants::repository_folder_path();
-    let all_paths = fs::path::read_dir_paths(&root_path)
-        .add_context("could not read root directory entries")?;
 
-    let files = gitignore::not_in_gitignore(&root_path, all_paths)?;
+    let paths = fs::path::read_not_ignored_paths(&root_path).add_context("could not get files from directory")?;
+
+    let objects = fs::object::as_objects(paths).add_context("could not create objects")?;
 
     // Getting files from working tree
-    let mut objects = Vec::new();
-    for p in files.into_iter() {
-        objects.extend(search_dir(p).add_context("could not get working tree objects")?);
-    }
 
     let mut changes_staged = String::from("Changes to be commited:\n");
     let mut include_staged = false;
@@ -51,62 +58,58 @@ pub fn status() -> Result<String> {
     let mut include_not_staged = false;
 
     // Checking differences
-    let mut object_hash: Hash;
-    for (path, object) in objects {
-        if paths_set.contains(path.as_os_str()) {
-            object_hash = Hash::new(
-                object
-                    .as_bytes()
-                    .add_context("could not encode object")?
-                    .as_ref(),
-            );
-            if hashes_set.contains(&object_hash) {
-                changes_staged
-                    .push_str(format!("\tmodified: {}\n", path.to_string_lossy()).as_ref());
-                include_staged = true;
-            } else {
-                changes_not_staged
-                    .push_str(format!("\tmodified: {}\n", path.to_string_lossy()).as_ref());
-                include_not_staged = true;
-            };
-        } else {
-            changes_not_staged.push_str(format!("\t{}\n", path.to_string_lossy()).as_ref());
-            include_not_staged = true;
-        }
-    }
-    changes_staged.pop();
-    changes_not_staged.pop();
-
-    if !include_staged && !include_not_staged {
-        return Ok("working tree clean, nothing to commit".into());
+    let mut status = Vec::with_capacity(objects.len());
+    let mut path: PathBuf;
+    let mut hash: Hash;
+    for o in objects {
+        // Implement once commit is done
     }
 
-    let mut status = String::new();
-    if include_staged {
-        status.push_str(format!("{}", changes_staged.green()).as_ref());
-    }
-    if include_not_staged {
-        status.push_str(format!("\n{}", changes_not_staged.red()).as_ref());
-    }
-    Ok(status)
+    let s = format_status(status);
+
+    Ok(s)
 }
 
-pub fn search_dir(path: PathBuf) -> Result<Vec<ObjectData>> {
-    if path.is_dir() {
-        let mut objects = Vec::new();
-        for e in std::fs::read_dir(path)? {
-            objects.extend(search_dir(e?.path())?)
+/// Given a list of file statuses, returns a formatted string depicting this status for every file.
+fn format_status(status: Vec<FileStatus>) -> String {
+    let mut tracked = String::from("Changes to commit:\n");
+    let mut tracked_files = false;
+    let mut untracked = String::from("Untracked files:\n");
+    let mut untracked_files = false;
+
+    let mut status_str: String;
+    for s in status {
+        status_str = match &s.status {
+            Status::New => format!("new file: {:?}\n", s.path),
+            Status::Moved { previous } => format!("moved: {:?} -> {:?}\n", previous, s.path),
+            Status::Deleted => format!("deleted: {:?}\n", s.path),
+            Status::Modified => format!("modified: {:?}\n", s.path),
+            Status::Unchanged => String::new(),
+        };
+        if let Status::Unchanged = s.status {
+            continue;
         }
-
-        Ok(objects)
-    } else {
-        let mut file = std::fs::File::open(&path).add_context("could not open file")?;
-
-        let mut data = Vec::new();
-        file.read_to_end(&mut data).add_context("could not read file")?;
-
-        let object = Object::from_bytes(&data).add_context("could not decode object")?;
-
-        Ok(vec![(path, object)])
+        match s.tracked {
+            true => {
+                tracked_files = true;
+                tracked.push_str(&status_str);
+            }
+            false => {
+                untracked_files = true;
+                untracked.push_str(&status_str);
+            }
+        }
     }
+
+    let mut final_str = String::new();
+
+    if tracked_files {
+        final_str.push_str(&tracked.green());
+    }
+    if untracked_files {
+        final_str.push('\n');
+        final_str.push_str(&untracked.red());
+    }
+
+    final_str
 }

@@ -1,9 +1,18 @@
+use std::path::PathBuf;
 use std::rc::Rc;
-use std::io::BufRead;
 
 use crate::{Error, Result};
 use crate::byteable::Byteable;
 
+/// Represents an object with some extra information, like the path.
+#[derive(Debug)]
+pub struct ExtendedObject {
+    pub object: Object,
+    pub path: PathBuf,
+}
+
+/// Represents the different type of objects there can be: Blobs, Commits and Trees, with methods
+/// for byte encoding and decoding.
 #[derive(Debug)]
 pub enum Object {
     Blob {

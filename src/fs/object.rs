@@ -1,27 +1,47 @@
 use std::ffi::OsStr;
 use std::fs;
+use std::path::{Path, PathBuf};
 
 use crate::byteable::Byteable;
 use crate::error::ResultContext;
 use crate::hashing::Hash;
-use crate::object::Object;
+use crate::object::{ExtendedObject, Object};
 use crate::utils::zlib;
-use crate::{Constants, Result};
+use crate::{gitignore, Constants, Result};
+
+/// Given an object, gets it's compressed representation and hash, and writes it to the object
+/// directory.
+///
+/// If the encoded object and their hash has already been processed, it's better to use the
+/// `write_to_object_dir` function since it does not calculate them from scratch.
+///
+/// # Errors
+///
+/// This function will fail if the object could not be encoded or the data could not be written. 
+fn write_object(object: &Object) -> Result<Hash> {
+    let bytes = object
+        .as_bytes()
+        .add_context("could not encode object")?;
+    let hash = Hash::new(bytes.as_ref());
+
+    write_to_object_dir(&bytes, &hash).add_context("could not write to object directory")?;
+
+    Ok(hash)
+}
 
 /// Writes a serialized and compressed version of the object to the folder in `Constants::object_dir`,
 /// returning the hash used to find said object.
 ///
+/// Unlike `write_object`, this function does not realize any extra operations on an object such as getting the
+/// hash of the object. It just compresses the bytes given.
+///
 /// # Errors
 ///
 /// This function can fail if there was not possible to create and write to the file or the object
-/// couldn't be compressed.
-pub fn write_to_object_dir(object: Object) -> Result<Hash> {
-    let data = object
-        .as_bytes()
-        .add_context("could not encode object data when writing to object dir")?;
-    let compressed = zlib::compress(data.as_ref())
+/// data couldn't be compressed.
+pub fn write_to_object_dir(bytes: &[u8], hash: &Hash) -> Result<()> {
+    let compressed = zlib::compress(bytes)
         .add_context("could not compress object when trying to write to object dir")?;
-    let hash = Hash::new(data.as_ref());
 
     let hash_str = hash.to_string();
     let file_dir = &hash_str[0..2];
@@ -34,7 +54,7 @@ pub fn write_to_object_dir(object: Object) -> Result<Hash> {
     if fs::exists(&file_path)
         .add_context("could not check for object file existance when writing to object dir")?
     {
-        return Ok(hash);
+        return Ok(());
     }
 
     fs::create_dir_all(folder_path)?;
@@ -42,5 +62,36 @@ pub fn write_to_object_dir(object: Object) -> Result<Hash> {
     fs::write(&file_path, compressed)
         .add_context(format!("could not write to object file: {file_path:?}"))?;
 
-    Ok(hash)
+    Ok(())
+}
+
+/// Converts the files in the given paths to their `ExtendedObject` representation.
+///
+/// This function will call itself recursively if a path is from a directory.
+///
+/// # Errors
+///
+/// This function can fail if there was an error while reading a file or when creating the object.
+pub fn as_objects(paths: Vec<PathBuf>) -> Result<Vec<ExtendedObject>> {
+    let mut objects = Vec::with_capacity(paths.len());
+    let mut dirs: Vec<PathBuf> = Vec::new();
+    let mut bytes: Vec<u8>;
+    for p in paths {
+        if p.is_dir() { dirs.push(p); continue; }
+
+        // Adding a file
+        bytes = fs::read(&p).add_context(format!("could not read file: {:?}", p))?;
+        objects.push(ExtendedObject {
+            object: Object::from_bytes(bytes.as_ref()).add_context(format!(
+                "could not create object from bytes of file: {:?}",
+                p
+            ))?,
+            path: p,
+        })
+    }
+
+    // Calling recursively for every directory
+    objects.extend(as_objects(dirs).add_context(format!("could not get objects from directory"))?);
+    
+    Ok(objects)
 }

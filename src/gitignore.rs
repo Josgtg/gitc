@@ -9,13 +9,15 @@ use crate::{Constants, Result};
 
 
 /// Reads a .gitignore file inside of `path`, returning a HashSet including all the files listed (read by line).
-///
+/// 
 /// This function will skip files in the gitignore that have text that could not be interpreted as a `String`.
+///
+/// This function expects the .gitignore file to be in the root of the given path.
 ///
 /// # Errors
 ///
 /// This function will fail if the .gitignore file could not been opened.
-fn read_gitignore(path: &Path) -> Result<HashSet<PathBuf>> {
+pub fn read_gitignore(path: &Path) -> Result<HashSet<PathBuf>> {
     let mut set: HashSet<PathBuf> = HashSet::new();
     // always adding repository path as a path to ignore no matter what
     set.insert(PathBuf::from(Constants::REPOSITORY_FOLDER_NAME));
@@ -41,7 +43,7 @@ fn read_gitignore(path: &Path) -> Result<HashSet<PathBuf>> {
 ///
 /// This function looks for a .gitignore file directly inside of `path`.
 ///
-/// It also checks every path in the .gitignore file as if being relative to `path`.
+/// It also checks every path as if it was relative to `path`.
 ///
 /// # Errors
 ///
