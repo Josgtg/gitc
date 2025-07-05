@@ -69,10 +69,11 @@ pub fn add(files: &[OsString]) -> Result<String> {
             // file is already in index
             continue;
         }
-        index_entry = IndexEntry::try_from_file(&path, hash).context(format!(
+        index_entry = IndexEntry::try_from_file(&path, hash.clone()).context(format!(
             "could not create index entry from file: {:?}",
             &path
         ))?;
+        fs::object::write_to_object_dir(&bytes, &hash).context("could not write to object dir")?;
         index_builder.add_index_entry(index_entry);
     }
 

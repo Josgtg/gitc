@@ -1,49 +1,12 @@
-use std::fs::File;
 use std::io::{BufRead, Cursor, Read, Write};
 use std::rc::Rc;
 
 use anyhow::{Context, Result, anyhow, bail};
 use byteorder::WriteBytesExt;
 
-use crate::byteable::Byteable;
-use crate::utils::zlib;
-
 use super::Object;
 
-/// Returns the compressed version of this object, result of encoding it with the `as_bytes`
-/// function and compressing it using zlib.
-///
-/// # Errors
-///
-/// This function can fail if it couldn't encode the object or it couldn't write to the
-/// encoder.
-pub fn compress_blob(blob: Object) -> Result<Rc<[u8]>> {
-    // Returning if this object is not a blob
-    match blob {
-        Object::Blob { .. } => (), // Ok
-        _ => bail!("object is not a blob"),
-    }
-
-    let bytes = blob
-        .as_bytes()
-        .context("could not encode object when compressing")?;
-
-    zlib::compress(bytes.as_ref()).context("could not compress object")
-}
-
-/// Returns a blob object made from the data, decompressing it.
-///
-/// # Errors
-///
-/// This function will fail if the decoder couldn't decompress the data.
-pub fn decompress_blob(data: &[u8]) -> Result<Object> {
-    Ok(Object::Blob {
-        data: zlib::decompress(data.as_ref())
-            .context("could not decompress data to create an object")?,
-    })
-}
-
-/// Returns the encoded data for this object, with the following format:
+/// Returns the encoded version of the bytes of a blob object, following the next format:
 ///
 /// `{type} {data_length}\0{data}`
 ///
@@ -124,11 +87,4 @@ pub fn blob_from_bytes(bytes: &[u8]) -> Result<Object> {
     Ok(Object::Blob {
         data: data_buf.into(),
     })
-}
-
-pub fn blob_try_from_file(mut file: File) -> Result<Object> {
-    let mut buf = Vec::new();
-    file.read_to_end(&mut buf)
-        .context("failed to read from file when building object")?;
-    Ok(Object::Blob { data: buf.into() })
 }

@@ -38,6 +38,7 @@ pub struct IndexEntry {
     path: OsString,
 }
 
+#[allow(unused)]
 impl IndexEntry {
     pub fn object_hash(&self) -> Hash {
         self.object_hash.clone()
