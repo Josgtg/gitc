@@ -84,16 +84,15 @@ pub fn as_objects(paths: Vec<PathBuf>) -> Result<Vec<ExtendedObject>> {
         // Adding a file
         bytes = fs::read(&p).context(format!("could not read file: {:?}", p))?;
         objects.push(ExtendedObject {
-            object: Object::from_bytes(bytes.as_ref()).context(format!(
-                "could not create object from bytes of file: {:?}",
-                p
-            ))?,
+            object: Object::Blob { data: bytes.into() },
             path: p,
         })
     }
 
     // Calling recursively for every directory
-    objects.extend(as_objects(dirs).context(format!("could not get objects from directory"))?);
+    if !objects.is_empty() {
+        objects.extend(as_objects(dirs).context(format!("could not get objects from directory"))?);
+    }
 
     Ok(objects)
 }
