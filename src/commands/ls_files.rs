@@ -1,7 +1,9 @@
-use crate::{Result, error::ResultContext, fs::index::read_index_file};
+use anyhow::{Context, Result};
+
+use crate::fs;
 
 pub fn ls_files(debug: bool) -> Result<String> {
-    let index = read_index_file().add_context("could not read from index file")?;
+    let index = fs::index::read_index_file().context("could not read from index file")?;
 
     let mut formatted = String::new();
     for e in index.entries() {

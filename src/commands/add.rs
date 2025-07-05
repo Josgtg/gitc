@@ -3,13 +3,15 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::rc::Rc;
 
+use anyhow::Context;
+use anyhow::Result;
+
+use crate::Constants;
 use crate::byteable::Byteable;
-use crate::error::ResultContext;
 use crate::fs;
 use crate::gitignore;
 use crate::hashing::Hash;
-use crate::index::{builder::IndexBuilder, IndexEntry};
-use crate::{Constants, Result};
+use crate::index::{IndexEntry, builder::IndexBuilder};
 
 const PATTERN_EVERY_FILE: &str = ".";
 
@@ -26,25 +28,23 @@ pub fn add(files: &[OsString]) -> Result<String> {
         .expect("file did not have first element despite being checked for emptiness")
         == PATTERN_EVERY_FILE
     {
-        fs::path::read_dir_paths(&root_path)
-            .add_context("could not read paths in repository folder")?
+        fs::path::read_dir_paths(&root_path).context("could not read paths in repository folder")?
     } else {
         files.iter().map(PathBuf::from).collect()
     };
 
     // Discarding ignored files, important to check as relative path
     let filtered_paths: Vec<PathBuf> = gitignore::not_in_gitignore(&root_path, paths)
-        .add_context("could not read get filtered files from .gitignore")?;
+        .context("could not read get filtered files from .gitignore")?;
 
     // reading all (not ignored) files as blob objects
-    let mut objects =
-        fs::object::as_objects(filtered_paths).add_context("could not get objecs")?;
+    let mut objects = fs::object::as_objects(filtered_paths).context("could not get objecs")?;
 
     // ordering entries in lexicographical order
     objects.sort_by(|o1, o2| PathBuf::cmp(&o1.path, &o2.path));
 
     // getting previous index to update it
-    let previous_index = fs::index::read_index_file().add_context("could not read index file")?;
+    let previous_index = fs::index::read_index_file().context("could not read index file")?;
     let mut index_builder = IndexBuilder::from(previous_index);
 
     // building a set containing hashes already in index to avoid adding a file twice
@@ -60,15 +60,16 @@ pub fn add(files: &[OsString]) -> Result<String> {
     let mut bytes: Rc<[u8]>;
     for o in objects {
         path = o.path;
-        bytes = o.object
-                .as_bytes()
-                .add_context(format!("could not encode object for file: {:?}", path))?;
+        bytes = o
+            .object
+            .as_bytes()
+            .context(format!("could not encode object for file: {:?}", path))?;
         hash = Hash::new(bytes.as_ref());
         if hashes_already_in_index.contains(&hash) {
             // file is already in index
             continue;
         }
-        index_entry = IndexEntry::try_from_file(&path, hash).add_context(format!(
+        index_entry = IndexEntry::try_from_file(&path, hash).context(format!(
             "could not create index entry from file: {:?}",
             &path
         ))?;
@@ -77,7 +78,7 @@ pub fn add(files: &[OsString]) -> Result<String> {
 
     let index = index_builder.build();
 
-    fs::index::write_index_file(index).add_context("could not write to index file")?;
+    fs::index::write_index_file(index).context("could not write to index file")?;
 
     Ok("Added files successfully".into())
 }

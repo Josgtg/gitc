@@ -1,4 +1,4 @@
-use crate::Result;
+use anyhow::Result;
 
 #[allow(unused)]
 pub fn commit(message: &str) -> Result<String> {

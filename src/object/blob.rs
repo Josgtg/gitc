@@ -2,12 +2,11 @@ use std::fs::File;
 use std::io::{BufRead, Cursor, Read, Write};
 use std::rc::Rc;
 
+use anyhow::{Context, Result, anyhow, bail};
 use byteorder::WriteBytesExt;
 
 use crate::byteable::Byteable;
-use crate::error::ResultContext;
 use crate::utils::zlib;
-use crate::{Error, Result};
 
 use super::Object;
 
@@ -22,14 +21,14 @@ pub fn compress_blob(blob: Object) -> Result<Rc<[u8]>> {
     // Returning if this object is not a blob
     match blob {
         Object::Blob { .. } => (), // Ok
-        _ => return Err(Error::Generic("object is not a blob".into())),
+        _ => bail!("object is not a blob"),
     }
 
     let bytes = blob
         .as_bytes()
-        .add_context("could not encode object when compressing")?;
+        .context("could not encode object when compressing")?;
 
-    zlib::compress(bytes.as_ref()).add_context("could not compress object")
+    zlib::compress(bytes.as_ref()).context("could not compress object")
 }
 
 /// Returns a blob object made from the data, decompressing it.
@@ -40,7 +39,7 @@ pub fn compress_blob(blob: Object) -> Result<Rc<[u8]>> {
 pub fn decompress_blob(data: &[u8]) -> Result<Object> {
     Ok(Object::Blob {
         data: zlib::decompress(data.as_ref())
-            .add_context("could not decompress data to create an object")?,
+            .context("could not decompress data to create an object")?,
     })
 }
 
@@ -57,15 +56,15 @@ pub fn blob_as_bytes(data: &[u8]) -> Result<Rc<[u8]>> {
 
     cursor
         .write_all(Object::BLOB_STRING.as_bytes())
-        .add_context("could not write object type")?;
+        .context("could not write object type")?;
     cursor.write_u8(b' ')?;
     cursor
         .write_all(data.len().to_string().as_bytes())
-        .add_context("could not write object data length")?;
+        .context("could not write object data length")?;
     cursor.write_u8(b'\0')?;
     cursor
         .write_all(data)
-        .add_context("could not write object data")?;
+        .context("could not write object data")?;
 
     Ok(cursor.into_inner().into())
 }
@@ -86,52 +85,40 @@ pub fn blob_from_bytes(bytes: &[u8]) -> Result<Object> {
     let mut kind_buf = Vec::new();
     cursor
         .read_until(b' ', &mut kind_buf)
-        .add_context("could not read blob's type")?;
+        .context("could not read blob's type")?;
     let kind = String::from_utf8_lossy(&kind_buf);
     if kind != Object::BLOB_STRING {
-        return Err(Error::DataConsistency(
-            format!(
-                "object type is not {:?}, but {:?}",
-                Object::BLOB_STRING,
-                kind
-            )
-            .into(),
-        ));
+        bail!(
+            "object type is not {:?}, but {:?}",
+            Object::BLOB_STRING,
+            kind
+        )
     }
 
     // reading data length
     let mut len_buf = Vec::new();
     cursor
         .read_until(b'\0', &mut len_buf)
-        .add_context("failed to read until null byte when decoding object")?; // reading until null char, before this there is the data length
+        .context("failed to read until null byte when decoding object")?; // reading until null char, before this there is the data length
     if len_buf.pop() != Some(b'\0') {
-        return Err(Error::Formatting(
-            "expected null byte after object data length".into(),
-        ));
+        bail!("expected null byte after object data length")
     }
     let data_len: usize = String::from_utf8(len_buf)
-        .add_context("failed to build string from object's decoded data length")?
+        .context("failed to build string from object's decoded data length")?
         .parse()
-        .map_err(|e| {
-            Error::DataConsistency(
-                format!("could not read data object lenght as a number: {e:?}").into(),
-            )
-        })?;
+        .map_err(|e| anyhow!("could not read data object lenght as a number: {:?}", e))?;
 
     // reading actual data
     let mut data_buf = Vec::new();
     cursor
         .read_to_end(&mut data_buf)
-        .add_context("could not read object data when decoding")?;
+        .context("could not read object data when decoding")?;
     if data_len != data_buf.len() {
-        return Err(Error::DataConsistency(
-            format!(
-                "lenght read \"{}\" did not match actual data length \"{}\"",
-                data_len,
-                data_buf.len()
-            )
-            .into(),
-        ));
+        bail!(
+            "lenght read \"{}\" did not match actual data length \"{}\"",
+            data_len,
+            data_buf.len()
+        )
     }
 
     Ok(Object::Blob {
@@ -142,6 +129,6 @@ pub fn blob_from_bytes(bytes: &[u8]) -> Result<Object> {
 pub fn blob_try_from_file(mut file: File) -> Result<Object> {
     let mut buf = Vec::new();
     file.read_to_end(&mut buf)
-        .add_context("failed to read from file when building object")?;
+        .context("failed to read from file when building object")?;
     Ok(Object::Blob { data: buf.into() })
 }

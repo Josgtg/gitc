@@ -3,8 +3,8 @@ use std::ffi::OsString;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::error::ResultContext;
-use crate::Result;
+use anyhow::Context;
+use anyhow::Result;
 
 /// Returns `path` relative to `base`.
 ///
@@ -56,7 +56,7 @@ pub fn clean_path(path: PathBuf, absolute: bool) -> PathBuf {
 /// Could not get the files inside of `dir`.
 pub fn read_dir_paths(path: &Path) -> Result<Vec<PathBuf>> {
     let mut paths = Vec::new();
-    let entries = std::fs::read_dir(path).add_context("could not get directory entries")?;
+    let entries = std::fs::read_dir(path).context("could not get directory entries")?;
     for e in entries {
         paths.push(e?.path());
     }
@@ -70,8 +70,7 @@ pub fn read_dir_paths(path: &Path) -> Result<Vec<PathBuf>> {
 // This function can fail if it couldn't get the files inside `path` or could not filter from the
 // gitignore.
 pub fn read_not_ignored_paths(path: &Path) -> Result<Vec<PathBuf>> {
-    let all_paths = read_dir_paths(&path)
-        .add_context("could not read root directory entries")?;
+    let all_paths = read_dir_paths(&path).context("could not read root directory entries")?;
     Ok(crate::gitignore::not_in_gitignore(&path, all_paths)?)
 }
 

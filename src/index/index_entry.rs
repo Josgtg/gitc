@@ -1,21 +1,19 @@
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::fmt::{Debug, Display};
 use std::fs::File;
-use std::io::{BufRead, Cursor, Read};
-use std::os::unix::ffi::OsStringExt;
-use std::os::unix::fs::MetadataExt;
+use std::io::{BufRead, Cursor, Read, Write};
+use std::os::unix::{ffi::OsStringExt, fs::MetadataExt};
 use std::path::Path;
 use std::rc::Rc;
 use std::time::UNIX_EPOCH;
-use std::{ffi::OsString, io::Write};
 
+use anyhow::{Context, Result, bail};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
+use crate::Constants;
 use crate::byteable::Byteable;
-use crate::error::ResultContext;
 use crate::fs::path::relative_path;
 use crate::hashing::Hash;
-use crate::{Constants, Error, Result};
 
 use super::FileStage;
 
@@ -66,10 +64,10 @@ impl IndexEntry {
     /// - It wasn't able to get the metadata of the file.
     pub fn try_from_file(file_path: &Path, object_hash: Hash) -> Result<Self> {
         let file =
-            File::open(file_path).add_context("failed to open file when encoding index entry")?;
+            File::open(file_path).context("failed to open file when encoding index entry")?;
         let metadata = file
             .metadata()
-            .add_context("could not get file metadata when encoding index entry")?;
+            .context("could not get file metadata when encoding index entry")?;
         Ok(IndexEntry {
             creation_time_sec: metadata.created()?.duration_since(UNIX_EPOCH)?.as_secs() as u32,
             creation_time_nsec: metadata
@@ -126,7 +124,7 @@ impl IndexEntry {
     /// Returns the 15th to 16th bit of the flags.
     pub fn get_stage(&self) -> FileStage {
         FileStage::try_from(self.flags & !IndexEntry::STAGE_POSITION)
-            .add_context("index entry did not have a valid stage")
+            .context("index entry did not have a valid stage")
             .unwrap()
     }
     pub fn set_stage(&mut self, stage: FileStage) {
@@ -161,46 +159,46 @@ impl Byteable for IndexEntry {
 
         cursor
             .write_u32::<BigEndian>(self.creation_time_sec)
-            .add_context("could not write creation_time_sec when encoding index entry")?;
+            .context("could not write creation_time_sec when encoding index entry")?;
         cursor
             .write_u32::<BigEndian>(self.creation_time_nsec)
-            .add_context("could not write creation_time_nsec when encoding index entry")?;
+            .context("could not write creation_time_nsec when encoding index entry")?;
         cursor
             .write_u32::<BigEndian>(self.modification_time_sec)
-            .add_context("could not write modification_time_sec when encoding index entry")?;
+            .context("could not write modification_time_sec when encoding index entry")?;
         cursor
             .write_u32::<BigEndian>(self.modification_time_nsec)
-            .add_context("could not write modification_time_nsec when encoding index entry")?;
+            .context("could not write modification_time_nsec when encoding index entry")?;
         cursor
             .write_u32::<BigEndian>(self.device)
-            .add_context("could not write device when encoding index entry")?;
+            .context("could not write device when encoding index entry")?;
         cursor
             .write_u32::<BigEndian>(self.inode)
-            .add_context("could not write inode when encoding index entry")?;
+            .context("could not write inode when encoding index entry")?;
         cursor
             .write_u32::<BigEndian>(self.mode)
-            .add_context("could not write mode when encoding index entry")?;
+            .context("could not write mode when encoding index entry")?;
         cursor
             .write_u32::<BigEndian>(self.uid)
-            .add_context("could not write uid when encoding index entry")?;
+            .context("could not write uid when encoding index entry")?;
         cursor
             .write_u32::<BigEndian>(self.gid)
-            .add_context("could not write gid when encoding index entry")?;
+            .context("could not write gid when encoding index entry")?;
         cursor
             .write_u32::<BigEndian>(self.file_size)
-            .add_context("could not write file_size when encoding index entry")?;
+            .context("could not write file_size when encoding index entry")?;
 
         cursor
             .write_all(self.object_hash.as_ref())
-            .add_context("could not write object_hash when encoding index entry")?;
+            .context("could not write object_hash when encoding index entry")?;
 
         cursor
             .write_u16::<BigEndian>(self.flags)
-            .add_context("could not write flags when encoding index entry")?;
+            .context("could not write flags when encoding index entry")?;
 
         cursor
             .write_all(self.path.as_encoded_bytes())
-            .add_context("could not write path when encoding index entry")?;
+            .context("could not write path when encoding index entry")?;
         cursor.write_u8(b'\0')?;
 
         let inner_len = cursor.get_ref().len();
@@ -225,56 +223,54 @@ impl Byteable for IndexEntry {
         let entry = IndexEntry {
             creation_time_sec: cursor
                 .read_u32::<BigEndian>()
-                .add_context("could not read creation_time_sec when decoding index entry")?,
+                .context("could not read creation_time_sec when decoding index entry")?,
             creation_time_nsec: cursor
                 .read_u32::<BigEndian>()
-                .add_context("could not read creation_time_nsec when decoding index entry")?,
+                .context("could not read creation_time_nsec when decoding index entry")?,
             modification_time_sec: cursor
                 .read_u32::<BigEndian>()
-                .add_context("could not read modification_time_sec when decoding index entry")?,
+                .context("could not read modification_time_sec when decoding index entry")?,
             modification_time_nsec: cursor
                 .read_u32::<BigEndian>()
-                .add_context("could not read modification_time_nsec when decoding index entry")?,
+                .context("could not read modification_time_nsec when decoding index entry")?,
             device: cursor
                 .read_u32::<BigEndian>()
-                .add_context("could not read device when decoding index entry")?,
+                .context("could not read device when decoding index entry")?,
             inode: cursor
                 .read_u32::<BigEndian>()
-                .add_context("could not read inode when decoding index entry")?,
+                .context("could not read inode when decoding index entry")?,
             mode: cursor
                 .read_u32::<BigEndian>()
-                .add_context("could not read mode when decoding index entry")?,
+                .context("could not read mode when decoding index entry")?,
             uid: cursor
                 .read_u32::<BigEndian>()
-                .add_context("could not read uid when decoding index entry")?,
+                .context("could not read uid when decoding index entry")?,
             gid: cursor
                 .read_u32::<BigEndian>()
-                .add_context("could not read gid when decoding index entry")?,
+                .context("could not read gid when decoding index entry")?,
             file_size: cursor
                 .read_u32::<BigEndian>()
-                .add_context("could not read file_size when decoding index entry")?,
+                .context("could not read file_size when decoding index entry")?,
 
             object_hash: {
                 let mut hash_buf: [u8; 20] = [0; 20];
                 cursor
                     .read_exact(&mut hash_buf)
-                    .add_context("could not read object hash when decoding index entry")?;
+                    .context("could not read object hash when decoding index entry")?;
                 Hash::from(hash_buf)
             },
 
             flags: cursor
                 .read_u16::<BigEndian>()
-                .add_context("could not read flags when decoding index entry")?,
+                .context("could not read flags when decoding index entry")?,
 
             path: {
                 let mut path_buf = Vec::new();
                 cursor
                     .read_until(b'\0', &mut path_buf)
-                    .add_context("could not read path when decoding index entry")?;
+                    .context("could not read path when decoding index entry")?;
                 if path_buf.pop() != Some(b'\0') {
-                    return Err(Error::Formatting(
-                        "expected null byte after index entry path".into(),
-                    ));
+                    bail!("expected null byte after index entry path")
                 }
 
                 OsString::from_vec(path_buf)
@@ -283,16 +279,15 @@ impl Byteable for IndexEntry {
 
         let flag_path_len = entry.flag_path_len();
         let actual_path_len = entry.path.len();
+
         if flag_path_len != IndexEntry::PATH_LEN_FLAG_POSITION
             && flag_path_len as usize != actual_path_len
         {
-            return Err(Error::DataConsistency(
-                format!(
-                    "index entry path length {:?} did not match actual path length {:?}",
-                    flag_path_len, actual_path_len
-                )
-                .into(),
-            ));
+            bail!(
+                "index entry path length {:?} did not match actual path length {:?}",
+                flag_path_len,
+                actual_path_len
+            )
         }
 
         let offset = entry.len().next_multiple_of(8) - entry.len();

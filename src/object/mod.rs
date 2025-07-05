@@ -5,4 +5,4 @@ mod blob;
 
 use blob::*;
 
-pub use object::{Object, ExtendedObject};
+pub use object::{ExtendedObject, Object};

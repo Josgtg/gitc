@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::Result;
+use anyhow::Result;
 
 /// Trait that ensures a type can be manipulated in a binary format.
 pub trait Byteable {

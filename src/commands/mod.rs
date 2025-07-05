@@ -16,8 +16,10 @@ use ls_files::ls_files;
 use reset::reset;
 use status::status;
 
+use anyhow::Result;
+
+use crate::Constants;
 use crate::args::Command;
-use crate::{Constants, Result};
 
 /// Calls the corresponding function to perform every command variant.
 ///

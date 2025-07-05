@@ -1,4 +1,4 @@
-use crate::Error;
+use anyhow::anyhow;
 
 /// Represents a file stage, mainly related to a merge.
 #[repr(u16)]
@@ -15,7 +15,7 @@ pub enum FileStage {
 }
 
 impl TryFrom<u16> for FileStage {
-    type Error = crate::Error;
+    type Error = anyhow::Error;
 
     fn try_from(value: u16) -> Result<Self, Self::Error> {
         match value {
@@ -23,12 +23,9 @@ impl TryFrom<u16> for FileStage {
             1 => Ok(Self::Ours),
             2 => Ok(Self::Theirs),
             3 => Ok(Self::Base),
-            _ => Err(Error::Generic(
-                format!(
-                    "value passed ({}) does not correspond to a file stage",
-                    value
-                )
-                .into(),
+            _ => Err(anyhow!(
+                "value passed ({}) does not correspond to a file stage",
+                value
             )),
         }
     }

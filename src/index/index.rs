@@ -2,12 +2,12 @@ use std::io::{Cursor, Read, Write};
 use std::rc::Rc;
 use std::slice::Iter;
 
+use anyhow::{Context, Result, bail};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
+use crate::Constants;
 use crate::byteable::Byteable;
-use crate::error::ResultContext;
 use crate::hashing::Hash;
-use crate::{Constants, Error, Result};
 
 use super::{ExtensionEntry, IndexEntry, builder::IndexBuilder};
 
@@ -35,23 +35,23 @@ impl Byteable for Index {
 
         cursor
             .write_u32::<BigEndian>(Constants::INDEX_HEADER_BINARY)
-            .add_context("could not write index header when encoding index")?;
+            .context("could not write index header when encoding index")?;
         cursor
             .write_u32::<BigEndian>(self.version_number)
-            .add_context("could not write version_number when encoding index")?;
+            .context("could not write version_number when encoding index")?;
         cursor
             .write_u32::<BigEndian>(self.entries_number)
-            .add_context("could not write entries_number when encoding index")?;
+            .context("could not write entries_number when encoding index")?;
 
         let mut entry_data: Rc<[u8]>;
         for e in self.entries.iter() {
             // unwrapping for debugging reasons
             entry_data = e
                 .as_bytes()
-                .add_context("could not serialize index entry when encoding index")?;
+                .context("could not serialize index entry when encoding index")?;
             cursor
                 .write_all(&entry_data)
-                .add_context("could not write index entry encoded data when encoding index")?;
+                .context("could not write index entry encoded data when encoding index")?;
         }
 
         for _e in self.extensions.iter() {
@@ -62,7 +62,7 @@ impl Byteable for Index {
         let checksum = Hash::new(cursor.get_ref());
         cursor
             .write_all(checksum.as_ref())
-            .add_context("could not write checksum when encoding index")?;
+            .context("could not write checksum when encoding index")?;
 
         Ok(cursor.into_inner().into())
     }
@@ -80,30 +80,25 @@ impl Byteable for Index {
 
         let dirc = cursor
             .read_u32::<BigEndian>()
-            .add_context("could not read DIRC when decoding index")?;
+            .context("could not read DIRC when decoding index")?;
         if dirc != Constants::INDEX_HEADER_BINARY {
-            return Err(Error::DataConsistency(
-                "index file does not contain a valid header".into(),
-            ));
+            bail!("index file does not contain a valid header")
         }
 
         let version_number = cursor
             .read_u32::<BigEndian>()
-            .add_context("could not read version_number when decoding index")?;
+            .context("could not read version_number when decoding index")?;
         if version_number != Constants::INDEX_VERSION_NUMBER {
-            return Err(Error::DataConsistency(
-                format!(
-                    "index file version {} is not supported, was expecting version {}",
-                    version_number,
-                    Constants::INDEX_VERSION_NUMBER
-                )
-                .into(),
-            ));
+            bail!(
+                "index file version {} is not supported, was expecting version {}",
+                version_number,
+                Constants::INDEX_VERSION_NUMBER
+            )
         }
 
         let entries_number = cursor
             .read_u32::<BigEndian>()
-            .add_context("could not read entries_number when decoding index")?;
+            .context("could not read entries_number when decoding index")?;
 
         let mut entry: IndexEntry;
         let mut bytes: &[u8];
@@ -112,7 +107,7 @@ impl Byteable for Index {
             position = cursor.position() as usize;
             bytes = &cursor.get_ref()[position..];
             entry = IndexEntry::from_bytes(bytes)
-                .add_context("failed to build an index entry when decoding index")?;
+                .context("failed to build an index entry when decoding index")?;
             // Advancing to the next index entry
             cursor.set_position((position + entry.len()) as u64);
             builder.add_index_entry(entry);
@@ -123,13 +118,13 @@ impl Byteable for Index {
         let index = builder.build();
         let index_bytes = index
             .as_bytes()
-            .add_context("could not encode current index when decoding index")?; // TODO: look for a way to check hash without hashing all the index
+            .context("could not encode current index when decoding index")?; // TODO: look for a way to check hash without hashing all the index
 
         let produced_hash = &index_bytes[index_bytes.len() - 20..];
         let mut actual_hash: [u8; 20] = [0; 20];
         cursor
             .read_exact(&mut actual_hash)
-            .add_context("could not read checksum when decoding index")?;
+            .context("could not read checksum when decoding index")?;
 
         // checking for valid checksum
         if produced_hash != actual_hash {

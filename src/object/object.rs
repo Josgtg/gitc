@@ -1,7 +1,7 @@
+use anyhow::Result;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use crate::{Error, Result};
 use crate::byteable::Byteable;
 
 /// Represents an object with some extra information, like the path.
@@ -15,9 +15,7 @@ pub struct ExtendedObject {
 /// for byte encoding and decoding.
 #[derive(Debug)]
 pub enum Object {
-    Blob {
-        data: Rc<[u8]>,
-    },
+    Blob { data: Rc<[u8]> },
     Tree {},
     Commit {},
 }
@@ -42,8 +40,8 @@ impl Byteable for Object {
     fn as_bytes(&self) -> Result<Rc<[u8]>> {
         match self {
             Object::Blob { data } => super::blob_as_bytes(data),
-            Object::Tree { .. } => Err(Error::NotImplemented),
-            Object::Commit { .. } => Err(Error::NotImplemented),
+            Object::Tree { .. } => todo!(),
+            Object::Commit { .. } => todo!(),
         }
     }
 
