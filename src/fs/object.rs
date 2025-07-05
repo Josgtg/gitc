@@ -90,8 +90,16 @@ pub fn as_objects(paths: Vec<PathBuf>) -> Result<Vec<ExtendedObject>> {
     }
 
     // Calling recursively for every directory
-    if !objects.is_empty() {
-        objects.extend(as_objects(dirs).context(format!("could not get objects from directory"))?);
+    let mut subdirs: Vec<PathBuf>;
+    for d in dirs {
+        subdirs = super::path::read_dir_paths(&d).context(format!(
+            "could not read subdirecories for directory: {:?}",
+            d
+        ))?;
+        objects.extend(
+            as_objects(subdirs)
+                .context(format!("could not get objects from directory: {:?}", d))?,
+        );
     }
 
     Ok(objects)

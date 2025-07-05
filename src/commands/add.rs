@@ -1,10 +1,9 @@
 use std::collections::HashSet;
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use anyhow::Context;
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 use crate::Constants;
 use crate::byteable::Byteable;
@@ -15,6 +14,8 @@ use crate::index::{IndexEntry, builder::IndexBuilder};
 
 const PATTERN_EVERY_FILE: &str = ".";
 
+/// Fetches all files from the worktree (not in .gitignore), creates blob objects for all of them,
+/// creates index entries from those objects and adds them to the index file.
 pub fn add(files: &[OsString]) -> Result<String> {
     if files.is_empty() {
         return Ok("There were no files to add".into());
@@ -38,20 +39,20 @@ pub fn add(files: &[OsString]) -> Result<String> {
         .context("could not read get filtered files from .gitignore")?;
 
     // reading all (not ignored) files as blob objects
-    let mut objects = fs::object::as_objects(filtered_paths).context("could not get objecs")?;
-
-    // ordering entries in lexicographical order
-    objects.sort_by(|o1, o2| PathBuf::cmp(&o1.path, &o2.path));
+    let objects = fs::object::as_objects(filtered_paths).context("could not get objects")?;
 
     // getting previous index to update it
     let previous_index = fs::index::read_index_file().context("could not read index file")?;
-    let mut index_builder = IndexBuilder::from(previous_index);
 
     // building a set containing hashes already in index to avoid adding a file twice
     let mut hashes_already_in_index: HashSet<Hash> = HashSet::new();
-    for h in index_builder.iter_index_entries().map(|o| o.object_hash()) {
-        hashes_already_in_index.insert(h);
+    let mut paths_already_in_index: HashSet<OsString> = HashSet::new();
+    for ie in previous_index.entries() {
+        hashes_already_in_index.insert(ie.object_hash());
+        paths_already_in_index.insert(ie.path().to_owned());
     }
+
+    let mut index_builder = IndexBuilder::from(previous_index);
 
     // adding index entries
     let mut index_entry: IndexEntry;
@@ -64,15 +65,25 @@ pub fn add(files: &[OsString]) -> Result<String> {
             .object
             .as_bytes()
             .context(format!("could not encode object for file: {:?}", path))?;
+
         hash = Hash::new(bytes.as_ref());
-        if hashes_already_in_index.contains(&hash) {
-            // file is already in index
-            continue;
+
+        if paths_already_in_index.contains(path.as_os_str()) {
+            // file already in index
+            if !hashes_already_in_index.contains(&hash) {
+                // file has been modified
+                index_builder.remove_index_entry_by_path(path.as_os_str());
+            } else {
+                // file is already included and not modified
+                continue;
+            }
         }
+
         index_entry = IndexEntry::try_from_file(&path, hash.clone()).context(format!(
             "could not create index entry from file: {:?}",
             &path
         ))?;
+
         fs::object::write_to_object_dir(&bytes, &hash).context("could not write to object dir")?;
         index_builder.add_index_entry(index_entry);
     }

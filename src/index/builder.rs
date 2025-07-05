@@ -1,3 +1,5 @@
+use std::cmp::{self, Ordering};
+use std::ffi::OsStr;
 use std::slice::Iter;
 
 use crate::Constants;
@@ -18,6 +20,9 @@ impl IndexBuilder {
     }
 
     pub fn build(mut self) -> Index {
+        self.index
+            .entries
+            .sort_by(|e1, e2| OsStr::cmp(e1.path(), e2.path()));
         self.index.entries_number = self.index.entries.len() as u32;
         self.index
     }
@@ -29,13 +34,13 @@ impl IndexBuilder {
     pub fn add_index_entry(&mut self, entry: IndexEntry) {
         self.index.entries.push(entry)
     }
+    pub fn remove_index_entry_by_path(&mut self, path: &OsStr) -> Option<IndexEntry> {
+        let position = self.index.entries.iter().position(|ie| ie.path() == path);
+        Some(self.index.entries.swap_remove(position?))
+    }
 
     pub fn add_extension_entry(&mut self, entry: ExtensionEntry) {
         self.index.extensions.push(entry)
-    }
-
-    pub fn iter_index_entries(&self) -> Iter<IndexEntry> {
-        self.index.entries()
     }
 }
 
