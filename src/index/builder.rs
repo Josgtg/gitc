@@ -1,6 +1,4 @@
-use std::cmp::{self, Ordering};
 use std::ffi::OsStr;
-use std::slice::Iter;
 
 use crate::Constants;
 

@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use crate::Constants;
 use crate::byteable::Byteable;
 use crate::hashing::Hash;
-use crate::object::{ExtendedObject, Object};
+use crate::object::{ExtendedBlob, Object};
 use crate::utils::zlib;
 
 /// Given an object, gets it's compressed representation and hash, and writes it to the object
@@ -71,7 +71,7 @@ pub fn write_to_object_dir(bytes: &[u8], hash: &Hash) -> Result<()> {
 /// # Errors
 ///
 /// This function can fail if there was an error while reading a file or when creating the object.
-pub fn as_objects(paths: Vec<PathBuf>) -> Result<Vec<ExtendedObject>> {
+pub fn as_objects(paths: Vec<PathBuf>) -> Result<Vec<ExtendedBlob>> {
     let mut objects = Vec::with_capacity(paths.len());
     let mut dirs: Vec<PathBuf> = Vec::new();
     let mut bytes: Vec<u8>;
@@ -83,7 +83,7 @@ pub fn as_objects(paths: Vec<PathBuf>) -> Result<Vec<ExtendedObject>> {
 
         // Adding a file
         bytes = fs::read(&p).context(format!("could not read file: {:?}", p))?;
-        objects.push(ExtendedObject {
+        objects.push(ExtendedBlob {
             object: Object::Blob { data: bytes.into() },
             path: p,
         })
