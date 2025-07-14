@@ -1,18 +1,25 @@
 use std::fmt::Display;
-use std::io::{BufRead, Cursor, Read};
 use std::rc::Rc;
-use std::str::FromStr;
+use std::str::{FromStr, Split};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use anyhow::{anyhow, bail, Context, Result};
-use time::{macros::format_description, UtcOffset};
+use anyhow::{bail, Context, Result};
+use time::format_description::BorrowedFormatItem;
+use time::macros::format_description;
+use time::UtcOffset;
 
 use crate::hashing::Hash;
 
 use super::Object;
 
-pub const TREE_STR: &'static str = "tree";
-pub const PARENT_STR: &'static str = "parent";
+// TODO: Add support for multiple parents and try to extract the logic to reading from the cursor
+// to a function to reduce the size.
+
+pub const TREE_STR: &str = "tree";
+pub const PARENT_STR: &str = "parent";
+pub const AUTHOR_STR: &str = "author";
+pub const COMMITTER_STR: &str = "committer";
+const TIMEZONE_FORMAT: &[BorrowedFormatItem] = format_description!("[offset_hour][offset_minute]");
 
 #[derive(Debug)]
 pub enum CommitUserKind {
@@ -20,18 +27,13 @@ pub enum CommitUserKind {
     Commiter,
 }
 
-impl CommitUserKind {
-    const AUTHOR_STR: &'static str = "author";
-    const COMMITTER_STR: &'static str = "committer";
-}
-
 impl FromStr for CommitUserKind {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self> {
         match s {
-            CommitUserKind::AUTHOR_STR => Ok(CommitUserKind::Author),
-            CommitUserKind::COMMITTER_STR => Ok(CommitUserKind::Commiter),
+            AUTHOR_STR => Ok(CommitUserKind::Author),
+            COMMITTER_STR => Ok(CommitUserKind::Commiter),
             _ => bail!("invalid commit user kind: {}", s),
         }
     }
@@ -40,8 +42,8 @@ impl FromStr for CommitUserKind {
 impl Display for CommitUserKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            CommitUserKind::Author => CommitUserKind::AUTHOR_STR,
-            CommitUserKind::Commiter => CommitUserKind::COMMITTER_STR,
+            CommitUserKind::Author => AUTHOR_STR,
+            CommitUserKind::Commiter => COMMITTER_STR,
         })
     }
 }
@@ -102,154 +104,68 @@ fn format_commituser(user: &CommitUser) -> Result<String> {
 /// This function will fail if the bytes do not conform to the expected format, or if any of the
 /// parsing operations fail.
 pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
-    let mut cursor = Cursor::new(bytes);
+    let commit_str =
+        std::str::from_utf8(bytes).context("could not form a string from the given bytes")?;
+    let mut lines = commit_str.lines();
 
-    // Verifying the file starts with "tree"
-    let mut tree_buf = Vec::new();
-    cursor
-        .read_until(b' ', &mut tree_buf)
-        .context("could not read tree word")?;
-    if tree_buf.pop() != Some(b' ') {
-        bail!("expected space after tree word")
-    }
-    let tree_str = String::from_utf8(tree_buf).context("could not parse bytes from tree word")?;
-    if tree_str != TREE_STR {
-        bail!(
-            "expected tree line to start with '{}', got: {}",
-            TREE_STR,
-            tree_str
-        );
-    }
+    let mut splitted: Split<_>;
 
-    // Reading tree hash
-    let mut tree_hash_buf = Vec::new();
-    cursor
-        .read_until(b'\n', &mut tree_hash_buf)
-        .context("could not read tree hash")?;
-    if tree_hash_buf.pop() != Some(b'\n') {
-        bail!("expected newline after tree hash")
+    // tree {tree_hash}
+    splitted = lines
+        .next()
+        .context("commit object did not have any lines")?.split(' ');
+    if splitted.next() != Some(TREE_STR) {
+        bail!("expected commit object to start with {}", TREE_STR)
     }
-    let tree_hash_str =
-        String::from_utf8(tree_hash_buf).context("could not parse bytes from tree hash")?;
-    let tree_hash = Hash::from_str(&tree_hash_str)
-        .context(format!("could not get hash from string {}", tree_hash_str))?;
+    let tree_hash_str = splitted.next().context(format!("expected hash after {}", TREE_STR))?;
+    let tree_hash = Hash::from_str(tree_hash_str).context(format!("could not create a hash from the {} hash string", TREE_STR))?;
 
-    // Ensuring next line starts with "parent" or if it's not present then reading the author
-    let mut next_buf = Vec::new(); // Next word can be either PARENT_STR or AUTHOR_STR
-    cursor
-        .read_until(b' ', &mut next_buf)
-        .context("could not read word after tree hash")?;
-    if next_buf.pop() != Some(b' ') {
-        bail!("expected space after the word after tree hash")
-    }
-    let next_str = String::from_utf8(next_buf).context("could not parse bytes from word after tree hash")?;
-
-    let mut parent_hash = None;
-    if next_str == PARENT_STR {
-        // Reading parent hash if next word was PARENT_STR
-        let mut parent_hash_buf = Vec::new();
-        cursor
-            .read_until(b'\n', &mut parent_hash_buf)
-            .context("could not read parent hash")?;
-        if parent_hash_buf.pop() != Some(b'\n') {
-            bail!("expected newline after parent hash")
-        }
-        let parent_hash_str =
-            String::from_utf8(parent_hash_buf).context("could not parse bytes from parent hash")?;
-        parent_hash = Some(Hash::from_str(&parent_hash_str).context(format!(
-            "could not get hash from string {}",
-            parent_hash_str
-        ))?);
-    } else if next_str != CommitUserKind::AUTHOR_STR {
-        // Or bailing if next word was not PARENT_STR nor AUTHOR_STR
-        bail!(
-            "expected parent line to start with '{}' or {}, got: {}",
-            PARENT_STR,
-            CommitUserKind::AUTHOR_STR,
-            next_str
-        );
+    // parent {parent_hash} (if exists)
+    splitted = lines.next().context("commit object only had one line")?.split(' ');
+    let next = splitted.next().context(format!("expected either {} or {}, got nothing", PARENT_STR, AUTHOR_STR))?;
+    let mut parent = None;
+    if next == PARENT_STR {
+        let parent_hash_str = splitted.next().context(format!("expected hash after {}", PARENT_STR))?;
+        parent = Some(Hash::from_str(parent_hash_str).context(format!("could not create a hash from the {} hash string", PARENT_STR))?);
+        // Updating, the next code expects `splitted` to be at the second word of the author line
+        splitted = lines.next().context("commit file ended abruptly")?.split(' ');
+        splitted.next().context(format!("expected {}", AUTHOR_STR))?;
     }
 
-    let author = parse_commituser(&mut cursor).context("could not parse author")?;
-    let committer = parse_commituser(&mut cursor).context("could not parse committer")?;
+    // author {identifier} {timestamp} {timezone}
+    let mut words = splitted.by_ref().count();
+    let mut identifier = splitted.by_ref().take(words - 2).collect::<String>();
+    let mut timestamp_str = splitted.next().context("expected timestamp")?;
+    let mut timestamp_u64 = timestamp_str.parse::<u64>().context("could not parse timestamp to a number")?;
+    let mut timezone = splitted.next().context("expected timezone")?;
+    let author = CommitUser {
+        kind: CommitUserKind::Author,
+        identifier,
+        timestamp: UNIX_EPOCH.checked_add(Duration::from_secs(timestamp_u64)).context("author timestamp was invalid")?,
+        timezone: UtcOffset::parse(timezone, TIMEZONE_FORMAT).context("timezone was invalid")?
+    };
 
-    let mut message_buf = Vec::new();
-    cursor
-        .read_to_end(&mut message_buf)
-        .context("could not read commit message")?;
-    let message = String::from_utf8(message_buf)
-        .context("could not parse bytes from commit message")?;
+    // committer {identifier} {timestamp} {timezone}
+    splitted = lines.next().context("commit file ended abruptly")?.split(' ');
+    words = splitted.by_ref().count();
+    identifier = splitted.by_ref().take(words - 2).collect::<String>();
+    timestamp_str = splitted.next().context("expected timestamp")?;
+    timestamp_u64 = timestamp_str.parse::<u64>().context("could not parse timestamp to a number")?;
+    timezone = splitted.next().context("expected timezone")?;
+    let committer = CommitUser {
+        kind: CommitUserKind::Author,
+        identifier,
+        timestamp: UNIX_EPOCH.checked_add(Duration::from_secs(timestamp_u64)).context("author timestamp was invalid")?,
+        timezone: UtcOffset::parse(timezone, TIMEZONE_FORMAT).context("timezone was invalid")?
+    };
+
+    let message = lines.next().unwrap_or("");
 
     Ok(Object::Commit {
         tree: tree_hash,
-        parent: parent_hash,
+        parent,
         author,
         committer,
         message: message.into(),
-    })
-}
-
-fn parse_commituser(cursor: &mut Cursor<&[u8]>) -> Result<CommitUser> {
-    // Parsing either "commiter" or "author"
-    let mut kind_buf = Vec::new();
-    cursor
-        .read_until(b' ', &mut kind_buf)
-        .context("could not read user kind")?;
-    if kind_buf.pop() != Some(b' ') {
-        bail!("expected space after user kind")
-    }
-    let s = String::from_utf8(kind_buf).context("could not parse bytes from commit user kind")?;
-    let kind = CommitUserKind::from_str(&s).context(format!(
-        "string was not a valid commit user kind, got: {}",
-        s
-    ))?;
-
-    // Reading, for example, name and email
-    let mut identifier_buf = Vec::new();
-    cursor
-        .read_until(b' ', &mut identifier_buf)
-        .context("could not read user identifier")?;
-    if identifier_buf.pop() != Some(b' ') {
-        bail!("expected space after user identifier")
-    }
-    let identifier = String::from_utf8(identifier_buf)
-        .context("could not parse bytes from commit user identifier")?;
-
-    // Reading the UNIX timestamp (seconds since UNIX_EPOCH)
-    let mut timestamp_buf = Vec::new();
-    cursor
-        .read_until(b' ', &mut timestamp_buf)
-        .context("could not read user timestamp")?;
-    if timestamp_buf.pop() != Some(b' ') {
-        bail!("expected space after user timestamp")
-    };
-    let s = String::from_utf8(timestamp_buf)
-        .context("could not parse bytes from commit user timestamp")?;
-    let seconds: u64 = s
-        .parse()
-        .context("could not parse commit user timestamp as u64")?;
-    let timestamp = UNIX_EPOCH
-        .checked_add(Duration::from_secs(seconds))
-        .ok_or_else(|| anyhow!("there was a timestamp overflow"))?;
-
-    // Reading the timezone
-    let mut timezone_buf = Vec::new();
-    cursor
-        .read_until(b'\n', &mut timezone_buf)
-        .context("could not read user timezone")?;
-    if timezone_buf.pop() != Some(b'\n') {
-        bail!("expected newline after user timezone")
-    };
-    let s = String::from_utf8(timezone_buf)
-        .context("could not parse bytes from commit user timezone")?;
-    let format = format_description!("[offset_hour][offset_minute]");
-    let timezone = UtcOffset::parse(&s, format)
-        .context(format!("string was not a valid timezone, got: {}", s))?;
-
-    Ok(CommitUser {
-        kind,
-        identifier,
-        timestamp,
-        timezone,
     })
 }

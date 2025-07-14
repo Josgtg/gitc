@@ -28,9 +28,9 @@ pub enum Object {
 }
 
 impl Object {
-    pub const BLOB_STRING: &'static str = "blob";
-    pub const TREE_STRING: &'static str = "tree";
-    pub const COMMIT_STRING: &'static str = "commit";
+    pub const BLOB_STRING: &str = "blob";
+    pub const TREE_STRING: &str = "tree";
+    pub const COMMIT_STRING: &str = "commit";
 }
 
 impl std::fmt::Display for Object {
