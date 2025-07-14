@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsString;
 use std::path::PathBuf;
 use std::rc::Rc;
 
@@ -62,7 +62,7 @@ pub fn add(files: &[OsString]) -> Result<String> {
     for o in objects {
         path = o.path;
         bytes = o
-            .object
+            .blob
             .as_bytes()
             .context(format!("could not encode object for file: {:?}", path))?;
 

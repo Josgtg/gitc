@@ -1,5 +1,6 @@
 use sha1::{Digest, Sha1};
-use std::{fmt::Display, rc::Rc};
+use std::{fmt::Display, rc::Rc, str::FromStr};
+use anyhow::Result;
 
 #[derive(Debug, PartialEq, Eq, std::hash::Hash, Clone)]
 pub struct Hash(Rc<[u8; 20]>);
@@ -28,6 +29,15 @@ impl From<&Rc<[u8; 20]>> for Hash {
 impl From<Hash> for [u8; 20] {
     fn from(value: Hash) -> Self {
         *value.0
+    }
+}
+
+impl FromStr for Hash {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        let hash = hex::decode(s)?;
+        Ok(Hash::new(&hash))
     }
 }
 

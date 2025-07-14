@@ -84,7 +84,7 @@ pub fn as_objects(paths: Vec<PathBuf>) -> Result<Vec<ExtendedBlob>> {
         // Adding a file
         bytes = fs::read(&p).context(format!("could not read file: {:?}", p))?;
         objects.push(ExtendedBlob {
-            object: Object::Blob { data: bytes.into() },
+            blob: Object::Blob { data: bytes.into() },
             path: p,
         })
     }

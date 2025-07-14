@@ -2,9 +2,8 @@ use anyhow::{bail, Context, Result};
 use std::io::{BufRead, Cursor};
 use std::rc::Rc;
 
-use crate::hashing::Hash;
 use crate::byteable::Byteable;
-use crate::user::User;
+use crate::hashing::Hash;
 
 use super::commit::CommitUser;
 use super::tree::TreeEntry;
@@ -23,7 +22,7 @@ pub enum Object {
         tree: Hash,
         parent: Option<Hash>,
         author: CommitUser,
-        commiter: CommitUser,
+        committer: CommitUser,
         message: Rc<str>,
     },
 }
@@ -49,21 +48,29 @@ impl Byteable for Object {
         match self {
             Object::Blob { data } => super::blob::as_bytes(data),
             Object::Tree { entries } => super::tree::as_bytes(entries),
-            Object::Commit { tree_hash, author, commiter, message } => super::commit::as_bytes(tree_hash, author, commiter, message),
+            Object::Commit {
+                tree,
+                parent,
+                author,
+                committer: commiter,
+                message,
+            } => super::commit::as_bytes(tree, parent.as_ref(), author, commiter, message),
         }
     }
 
     fn from_bytes(bytes: &[u8]) -> Result<Self> {
         // Getting object type
         let mut kind_buffer = Vec::new();
-        Cursor::new(bytes).read_until(b' ', &mut kind_buffer).context("could not get object type")?;
+        Cursor::new(bytes)
+            .read_until(b' ', &mut kind_buffer)
+            .context("could not get object type")?;
 
         let kind = String::from_utf8_lossy(&kind_buffer);
         match kind.as_ref() {
             Object::BLOB_STRING => super::blob::from_bytes(bytes),
             Object::TREE_STRING => super::tree::from_bytes(bytes),
             Object::COMMIT_STRING => super::commit::from_bytes(bytes),
-            _ => bail!("object did not have a valid type, got: {}", kind)
+            _ => bail!("object did not have a valid type, got: {}", kind),
         }
     }
 }

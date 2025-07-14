@@ -7,7 +7,6 @@ mod gitignore;
 mod hashing;
 mod index;
 mod object;
-mod user;
 mod utils;
 
 use clap::Parser;
