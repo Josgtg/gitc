@@ -3,10 +3,10 @@ use std::rc::Rc;
 use std::str::{FromStr, Split};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
+use time::UtcOffset;
 use time::format_description::BorrowedFormatItem;
 use time::macros::format_description;
-use time::UtcOffset;
 
 use crate::hashing::Hash;
 
@@ -705,8 +705,15 @@ mod tests {
     fn test_from_bytes_multiline_message() {
         let commit_data = format!(
             "tree {}\nauthor {} <{}> {} {}\ncommitter {} <{}> {} {}\n\nThis is a multiline\ncommit message\nwith multiple lines!",
-            TEST_TREE_HASH, TEST_AUTHOR_NAME, TEST_AUTHOR_EMAIL, TEST_TIMESTAMP_AUTHOR, TEST_TIMEZONE_UTC_STR,
-            TEST_COMMITTER_NAME, TEST_COMMITTER_EMAIL, TEST_TIMESTAMP_COMMITTER, TEST_TIMEZONE_UTC_STR
+            TEST_TREE_HASH,
+            TEST_AUTHOR_NAME,
+            TEST_AUTHOR_EMAIL,
+            TEST_TIMESTAMP_AUTHOR,
+            TEST_TIMEZONE_UTC_STR,
+            TEST_COMMITTER_NAME,
+            TEST_COMMITTER_EMAIL,
+            TEST_TIMESTAMP_COMMITTER,
+            TEST_TIMEZONE_UTC_STR
         );
 
         let result = from_bytes(commit_data.as_bytes());

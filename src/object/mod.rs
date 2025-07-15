@@ -2,8 +2,8 @@
 mod object;
 
 mod blob;
-mod tree;
 mod commit;
+mod tree;
 
-pub use object::Object;
 pub use blob::ExtendedBlob;
+pub use object::Object;

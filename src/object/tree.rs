@@ -4,7 +4,7 @@ use std::os::unix::ffi::OsStringExt;
 use std::path::Path;
 use std::rc::Rc;
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use byteorder::WriteBytesExt;
 
 use crate::hashing::Hash;

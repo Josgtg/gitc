@@ -87,7 +87,7 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
     cursor
         .read_to_end(&mut data_buf)
         .context("could not read object data when decoding")?;
-    
+
     if data_len != data_buf.len() {
         bail!(
             "lenght read \"{}\" did not match actual data length \"{}\"",
