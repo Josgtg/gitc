@@ -1,6 +1,6 @@
 use sha1::{Digest, Sha1};
 use std::{fmt::Display, rc::Rc, str::FromStr};
-use anyhow::Result;
+use anyhow::{bail, Result};
 
 #[derive(Debug, PartialEq, Eq, std::hash::Hash, Clone)]
 pub struct Hash(Rc<[u8; 20]>);
@@ -37,7 +37,14 @@ impl FromStr for Hash {
 
     fn from_str(s: &str) -> Result<Self> {
         let hash = hex::decode(s)?;
-        Ok(Hash::new(&hash))
+        let mut bytes = [0;20];
+        for (i, b) in hash.into_iter().enumerate() {
+            if i >= 20 {
+                bail!("produced hash had exceeded 20 bytes")
+            }
+            bytes[i] = b;
+        }
+        Ok(bytes.into())
     }
 }
 
