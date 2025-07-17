@@ -69,14 +69,14 @@ pub struct CommitUser {
 /// {`message`}
 pub fn as_bytes(
     tree_hash: &Hash,
-    parent: Option<&Hash>,
+    parents: &[Hash],
     author: &CommitUser,
     commiter: &CommitUser,
     message: &str,
 ) -> Result<Rc<[u8]>> {
     let mut file = format!("{} {}\n", TREE_STR, tree_hash);
-    if let Some(parent_hash) = parent {
-        file.push_str(&format!("{} {}\n", PARENT_STR, parent_hash));
+    for hash in parents.iter() {
+        file.push_str(&format!("{} {}\n", PARENT_STR, hash));
     }
     file.push_str(&format_commituser(author)?);
     file.push_str(&format_commituser(commiter)?);
@@ -136,12 +136,15 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
         "expected either {} or {}, got nothing",
         PARENT_STR, AUTHOR_STR
     ))?;
-    let mut parent = None;
-    if next == PARENT_STR {
-        let parent_hash_str = splitted
+
+    // Parsing (possibly) multiple parents
+    let mut parents = Vec::new();
+    let mut parent_hash_str: &str;
+    while next == PARENT_STR {
+        parent_hash_str = splitted
             .next()
             .context(format!("expected hash after {}", PARENT_STR))?;
-        parent = Some(Hash::from_str(parent_hash_str).context(format!(
+        parents.push(Hash::from_str(parent_hash_str).context(format!(
             "could not create a hash from the {} hash string",
             PARENT_STR
         ))?);
@@ -223,7 +226,7 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
 
     Ok(Object::Commit {
         tree: tree_hash,
-        parent,
+        parents: parents.into(),
         author,
         committer,
         message: message.into(),
@@ -320,7 +323,7 @@ mod tests {
 
         let result = as_bytes(
             &tree_hash,
-            Some(&parent_hash),
+            &[parent_hash],
             &author,
             &committer,
             TEST_MESSAGE,
@@ -380,7 +383,7 @@ mod tests {
             TEST_TIMEZONE_UTC,
         );
 
-        let result = as_bytes(&tree_hash, None, &author, &committer, TEST_MESSAGE);
+        let result = as_bytes(&tree_hash, &[], &author, &committer, TEST_MESSAGE);
 
         let bytes = result.unwrap();
         let commit_str = std::str::from_utf8(&bytes).unwrap();
@@ -434,15 +437,14 @@ mod tests {
 
         if let Object::Commit {
             tree,
-            parent,
+            parents,
             author,
             committer,
             message,
         } = result.unwrap()
         {
             assert_eq!(tree.to_string(), TEST_TREE_HASH);
-            assert!(parent.is_some());
-            assert_eq!(parent.unwrap().to_string(), TEST_PARENT_HASH);
+            assert_eq!(parents.get(0).unwrap().to_string(), TEST_PARENT_HASH);
             assert_eq!(
                 author.identifier,
                 format!("{} <{}>", TEST_AUTHOR_NAME, TEST_AUTHOR_EMAIL)
@@ -477,14 +479,14 @@ mod tests {
 
         if let Object::Commit {
             tree,
-            parent,
+            parents,
             author,
             committer,
             message,
         } = result.unwrap()
         {
             assert_eq!(tree.to_string(), TEST_TREE_HASH);
-            assert!(parent.is_none());
+            assert!(parents.is_empty());
             assert_eq!(
                 author.identifier,
                 format!("{} <{}>", TEST_AUTHOR_NAME, TEST_AUTHOR_EMAIL)
@@ -521,7 +523,7 @@ mod tests {
         // Serialize to bytes
         let bytes = as_bytes(
             &tree_hash,
-            Some(&parent_hash),
+            &[parent_hash],
             &author,
             &committer,
             TEST_MESSAGE_MULTILINE,
@@ -533,15 +535,14 @@ mod tests {
 
         if let Object::Commit {
             tree,
-            parent,
+            parents,
             author: parsed_author,
             committer: parsed_committer,
             message: parsed_message,
         } = parsed
         {
             assert_eq!(tree.to_string(), TEST_TREE_HASH);
-            assert!(parent.is_some());
-            assert_eq!(parent.unwrap().to_string(), TEST_PARENT_HASH);
+            assert_eq!(parents.get(0).unwrap().to_string(), TEST_PARENT_HASH);
             assert_eq!(
                 parsed_author.identifier,
                 format!("{} <{}>", TEST_AUTHOR_NAME, TEST_AUTHOR_EMAIL)
@@ -575,21 +576,21 @@ mod tests {
         );
 
         // Serialize to bytes
-        let bytes = as_bytes(&tree_hash, None, &author, &committer, TEST_MESSAGE).unwrap();
+        let bytes = as_bytes(&tree_hash, &[], &author, &committer, TEST_MESSAGE).unwrap();
 
         // Parse back from bytes
         let parsed = from_bytes(&bytes).unwrap();
 
         if let Object::Commit {
             tree,
-            parent,
+            parents,
             author: parsed_author,
             committer: parsed_committer,
             message: parsed_message,
         } = parsed
         {
             assert_eq!(tree.to_string(), TEST_TREE_HASH);
-            assert!(parent.is_none());
+            assert!(parents.is_empty());
             assert_eq!(
                 parsed_author.identifier,
                 format!("{} <{}>", TEST_AUTHOR_NAME, TEST_AUTHOR_EMAIL)
@@ -703,8 +704,9 @@ mod tests {
 
     #[test]
     fn test_from_bytes_multiline_message() {
+        let og_message = "This is a multiline\ncommit message\nwith multiple lines!";
         let commit_data = format!(
-            "tree {}\nauthor {} <{}> {} {}\ncommitter {} <{}> {} {}\n\nThis is a multiline\ncommit message\nwith multiple lines!",
+            "tree {}\nauthor {} <{}> {} {}\ncommitter {} <{}> {} {}\n\n{}",
             TEST_TREE_HASH,
             TEST_AUTHOR_NAME,
             TEST_AUTHOR_EMAIL,
@@ -713,16 +715,14 @@ mod tests {
             TEST_COMMITTER_NAME,
             TEST_COMMITTER_EMAIL,
             TEST_TIMESTAMP_COMMITTER,
-            TEST_TIMEZONE_UTC_STR
+            TEST_TIMEZONE_UTC_STR,
+            og_message,
         );
 
         let result = from_bytes(commit_data.as_bytes());
 
         if let Object::Commit { message, .. } = result.unwrap() {
-            assert_eq!(
-                message,
-                "This is a multiline\ncommit message\nwith multiple lines!".into()
-            );
+            assert_eq!(message, og_message.into());
         } else {
             panic!("Expected Commit object");
         }
@@ -746,7 +746,7 @@ mod tests {
             TEST_TIMEZONE_NEGATIVE,
         );
 
-        let bytes = as_bytes(&tree_hash, None, &author, &committer, TEST_MESSAGE_TIMEZONE).unwrap();
+        let bytes = as_bytes(&tree_hash, &[], &author, &committer, TEST_MESSAGE_TIMEZONE).unwrap();
         let parsed = from_bytes(&bytes).unwrap();
 
         if let Object::Commit {
@@ -762,6 +762,50 @@ mod tests {
             );
         } else {
             panic!("Expected Commit object");
+        }
+    }
+
+    #[test]
+    pub fn test_multiple_parent() {
+        let tree_hash = create_test_hash(TEST_TREE_HASH);
+        let parents_num = 10;
+        let mut parent_hashes = Vec::new();
+        for _ in 0..parents_num {
+            parent_hashes.push(create_test_hash(TEST_PARENT_HASH));
+        }
+        let author = create_test_user(
+            CommitUserKind::Author,
+            TEST_AUTHOR_NAME,
+            TEST_AUTHOR_EMAIL,
+            TEST_TIMESTAMP_AUTHOR,
+            TEST_TIMEZONE_OFFSET,
+        );
+        let committer = create_test_user(
+            CommitUserKind::Commiter,
+            TEST_COMMITTER_NAME,
+            TEST_COMMITTER_EMAIL,
+            TEST_TIMESTAMP_COMMITTER,
+            TEST_TIMEZONE_OFFSET,
+        );
+
+        let bytes = as_bytes(
+            &tree_hash,
+            &parent_hashes,
+            &author,
+            &committer,
+            TEST_MESSAGE,
+        )
+        .unwrap();
+
+        let parsed = from_bytes(&bytes).unwrap();
+
+        if let Object::Commit { parents, .. } = parsed {
+            assert!(parents.len() == parents_num);
+            for p in parents.iter() {
+                assert_eq!(p.to_string(), TEST_PARENT_HASH);
+            }
+        } else {
+            panic!("expected commit object")
         }
     }
 }

@@ -20,7 +20,7 @@ pub enum Object {
     },
     Commit {
         tree: Hash,
-        parent: Option<Hash>,
+        parents: Rc<[Hash]>,
         author: CommitUser,
         committer: CommitUser,
         message: Rc<str>,
@@ -50,11 +50,11 @@ impl Byteable for Object {
             Object::Tree { entries } => super::tree::as_bytes(entries),
             Object::Commit {
                 tree,
-                parent,
+                parents,
                 author,
                 committer: commiter,
                 message,
-            } => super::commit::as_bytes(tree, parent.as_ref(), author, commiter, message),
+            } => super::commit::as_bytes(tree, parents, author, commiter, message),
         }
     }
 
