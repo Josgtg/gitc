@@ -5,6 +5,9 @@ use std::{fmt::Display, rc::Rc, str::FromStr};
 #[derive(Debug, PartialEq, Eq, std::hash::Hash, Clone)]
 pub struct Hash(Rc<[u8; 20]>);
 
+pub const HASH_BYTE_LEN: usize = 20;
+pub const HASH_STR_LEN: usize = 40;
+
 impl Hash {
     /// Returns the SHA1 hash for the data passed
     pub fn new(value: &[u8]) -> Self {
