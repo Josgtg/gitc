@@ -39,14 +39,14 @@ pub fn add(files: &[OsString]) -> Result<String> {
         .context("could not read get filtered files from .gitignore")?;
 
     // reading all (not ignored) files as blob objects
-    let objects = fs::object::as_objects(filtered_paths).context("could not get objects")?;
+    let objects = fs::object::as_blob_objects(filtered_paths).context("could not get objects")?;
 
     // getting previous index to update it
     let previous_index = fs::index::read_index_file().context("could not read index file")?;
 
     // building a set containing hashes already in index to avoid adding a file twice
     let mut hashes_already_in_index: HashSet<Hash> = HashSet::new();
-    let mut paths_already_in_index: HashSet<OsString> = HashSet::new();
+    let mut paths_already_in_index: HashSet<PathBuf> = HashSet::new();
     for ie in previous_index.entries() {
         hashes_already_in_index.insert(ie.object_hash());
         paths_already_in_index.insert(ie.path().to_owned());
@@ -68,11 +68,11 @@ pub fn add(files: &[OsString]) -> Result<String> {
 
         hash = Hash::new(bytes.as_ref());
 
-        if paths_already_in_index.contains(path.as_os_str()) {
+        if paths_already_in_index.contains(&path) {
             // file already in index
             if !hashes_already_in_index.contains(&hash) {
                 // file has been modified
-                index_builder.remove_index_entry_by_path(path.as_os_str());
+                index_builder.remove_index_entry_by_path(&path);
             } else {
                 // file is already included and not modified
                 continue;

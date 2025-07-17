@@ -5,5 +5,6 @@ mod blob;
 mod commit;
 mod tree;
 
-pub use blob::ExtendedBlob;
+pub use blob::BlobExt;
 pub use object::Object;
+pub use tree::{TreeBuilder, TreeEntry};

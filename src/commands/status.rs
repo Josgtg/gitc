@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::ffi::OsStr;
+use std::path::Path;
 use std::path::PathBuf;
 
 use anyhow::Context;
@@ -40,7 +40,7 @@ enum Status {
 pub fn status() -> Result<String> {
     // Getting index data an placing it in hash sets for easy access
     let index = read_index_file().context("could not read from index file")?;
-    let paths_set: HashSet<&OsStr> = HashSet::from_iter(index.entries().map(IndexEntry::path));
+    let paths_set: HashSet<&Path> = HashSet::from_iter(index.entries().map(IndexEntry::path));
     let hashes_set: HashSet<Hash> =
         HashSet::from_iter(index.entries().map(IndexEntry::object_hash));
 
@@ -49,7 +49,7 @@ pub fn status() -> Result<String> {
     let paths = fs::path::read_not_ignored_paths(&root_path)
         .context("could not get files from directory")?;
 
-    let objects = fs::object::as_objects(paths).context("could not create objects")?;
+    let objects = fs::object::as_blob_objects(paths).context("could not create objects")?;
 
     // Getting files from working tree
 

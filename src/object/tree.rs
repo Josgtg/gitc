@@ -4,10 +4,10 @@ use std::os::unix::ffi::OsStringExt;
 use std::path::Path;
 use std::rc::Rc;
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use byteorder::WriteBytesExt;
 
-use crate::hashing::{Hash, HASH_BYTE_LEN};
+use crate::hashing::{HASH_BYTE_LEN, Hash};
 
 use super::Object;
 
@@ -16,7 +16,6 @@ const SPACE_BYTE: u8 = b' ';
 
 #[derive(Debug)]
 pub struct TreeEntry {
-    /// Already formatted as an octal number
     mode: u32,
     path: OsString,
     hash: Hash,
@@ -61,8 +60,6 @@ pub fn as_bytes(entries: &[TreeEntry]) -> Result<Rc<[u8]>> {
     // Cursor for tree entries
     let mut entries_cursor = Cursor::new(Vec::new());
     for e in entries {
-        // mode is stored as an ascii, octal formatted number (the entry already stores the number
-        // as octal)
         entries_cursor
             .write_all(e.mode.to_string().as_bytes())
             .context("could not write tree entry mode")?;
@@ -131,19 +128,23 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
     let mut actual_len = 0;
     let mut bytes_read: usize;
     loop {
+        // reading mode
         mode_buf = Vec::new();
         bytes_read = cursor
             .read_until(SPACE_BYTE, &mut mode_buf)
             .context("could not read tree entry mode")?;
+
         // If this returned 0, the file has ended
         if bytes_read == 0 {
             break;
         }
+
         if mode_buf.pop() != Some(SPACE_BYTE) {
             bail!("expected space after tree entry mode")
         }
         actual_len += mode_buf.len() + 1; // One for the space byte
 
+        // reading path
         path_buf = Vec::new();
         cursor
             .read_until(NULL_BYTE, &mut path_buf)
@@ -153,20 +154,20 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
         }
         actual_len += path_buf.len() + 1; // One for the null byte
 
+        // reading hash
         cursor
             .read_exact(&mut hash_buf)
             .context("could not read tree entry hash")?;
         actual_len += HASH_BYTE_LEN;
 
+        // creating and adding tree entry
         entries.push(TreeEntry {
-            // This assumes `mode` is already an octal number
             mode: String::from_utf8_lossy(&mode_buf)
                 .parse::<u32>()
                 .context("could not get mode from bytes read (could not parse to a number)")?,
             path: OsString::from_vec(path_buf),
             hash: Hash::from(hash_buf),
         });
-        dbg!(&entries);
     }
 
     if actual_len != data_len {
@@ -189,9 +190,9 @@ mod tests {
     use std::str::FromStr;
 
     // Constants for test data
-    const TEST_MODE_FILE: u32 = 100644;
-    const TEST_MODE_EXECUTABLE: u32 = 100755;
-    const TEST_MODE_DIR: u32 = 040000;
+    const TEST_MODE_FILE: u32 = 0o100644;
+    const TEST_MODE_EXECUTABLE: u32 = 0o100755;
+    const TEST_MODE_DIR: u32 = 0o040000;
     const TEST_HASH_1: &str = "99ad2293829e9638b4dfeeb7bc405a4d140e84e3";
     const TEST_HASH_2: &str = "3e9713cc8320cc020e39b53566b2a34022608edc";
     const TEST_HASH_3: &str = "99800b85d3383e3a2fb45eb7d0066a4879a9dad0";
@@ -379,10 +380,12 @@ mod tests {
         let result = from_bytes(input);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("object is not a tree"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("object is not a tree")
+        );
     }
 
     #[test]
@@ -391,10 +394,12 @@ mod tests {
         let result = from_bytes(input);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("expected space after object type"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("expected space after object type")
+        );
     }
 
     #[test]
@@ -403,10 +408,12 @@ mod tests {
         let result = from_bytes(input);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("expected null byte after data length"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("expected null byte after data length")
+        );
     }
 
     #[test]
@@ -415,10 +422,12 @@ mod tests {
         let result = from_bytes(input);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("could not read data object lenght as a number"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("could not read data object lenght as a number")
+        );
     }
 
     #[test]
@@ -426,12 +435,13 @@ mod tests {
         let mut input = Vec::from(b"tree 100\0100644 file.txt\0");
         input.extend(
             // Important to format the hash string as a hex encoded string
-            Hash::from_str("1111111111111111111111111111111111111111").unwrap().as_ref()
+            Hash::from_str("1111111111111111111111111111111111111111")
+                .unwrap()
+                .as_ref(),
         );
         let result = from_bytes(input.as_ref());
 
         assert!(result.is_err());
-        dbg!(&result);
         assert!(result.unwrap_err().to_string().contains("actual data len"));
     }
 
@@ -441,10 +451,12 @@ mod tests {
         let result = from_bytes(input);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("expected space after tree entry mode"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("expected space after tree entry mode")
+        );
     }
 
     #[test]
@@ -453,10 +465,12 @@ mod tests {
         let result = from_bytes(input);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("expected null byte after tree entry path"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("expected null byte after tree entry path")
+        );
     }
 
     #[test]
@@ -465,10 +479,12 @@ mod tests {
         let result = from_bytes(input);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("could not read tree entry hash"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("could not read tree entry hash")
+        );
     }
 
     #[test]
@@ -480,10 +496,12 @@ mod tests {
         let result = from_bytes(&input);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("could not get mode from bytes read"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("could not get mode from bytes read")
+        );
     }
 
     #[test]

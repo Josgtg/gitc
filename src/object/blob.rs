@@ -9,7 +9,7 @@ use super::Object;
 
 /// Represents an object with some extra information, like the path.
 #[derive(Debug)]
-pub struct ExtendedBlob {
+pub struct BlobExt {
     pub blob: Object,
     pub path: PathBuf,
 }
@@ -100,3 +100,4 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
         data: data_buf.into(),
     })
 }
+

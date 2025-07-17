@@ -1,9 +1,9 @@
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsString;
 use std::fmt::{Debug, Display};
 use std::fs::File;
 use std::io::{BufRead, Cursor, Read, Write};
 use std::os::unix::{ffi::OsStringExt, fs::MetadataExt};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::time::UNIX_EPOCH;
 
@@ -21,21 +21,21 @@ use super::FileStage;
 /// recreate a file.
 #[derive(Clone)]
 pub struct IndexEntry {
-    creation_time_sec: u32,
-    creation_time_nsec: u32,
-    modification_time_sec: u32,
-    modification_time_nsec: u32,
-    device: u32,
-    inode: u32,
-    mode: u32,
-    uid: u32,
-    gid: u32,
-    file_size: u32,
+    pub creation_time_sec: u32,
+    pub creation_time_nsec: u32,
+    pub modification_time_sec: u32,
+    pub modification_time_nsec: u32,
+    pub device: u32,
+    pub inode: u32,
+    pub mode: u32,
+    pub uid: u32,
+    pub gid: u32,
+    pub file_size: u32,
     /// hash the object this file index represents
     object_hash: Hash,
     /// state path length
     flags: u16,
-    path: OsString,
+    path: PathBuf,
 }
 
 #[allow(unused)]
@@ -52,8 +52,8 @@ impl IndexEntry {
     }
 
     /// Returns a reference to the path of this index entry.
-    pub fn path(&self) -> &OsStr {
-        self.path.as_os_str()
+    pub fn path(&self) -> &Path {
+        self.path.as_ref()
     }
 
     /// Tries to build an index entry from the file at `path` and the hash of the blob object for said file.
@@ -141,7 +141,7 @@ impl IndexEntry {
 
     /// Returns the length of the entry's path.
     pub fn path_len(&self) -> usize {
-        self.path.len()
+        self.path.as_os_str().len()
     }
 }
 
@@ -153,7 +153,7 @@ impl Byteable for IndexEntry {
     /// This function can fail if any of the read/write operations made to a cursor fail.
     fn as_bytes(&self) -> Result<Rc<[u8]>> {
         // 62 fixed bytes, variable path and null byte
-        let data_len = 62 + self.path.len() + 1;
+        let data_len = 62 + self.path_len() + 1;
         let bytes: Vec<u8> = Vec::with_capacity(data_len);
 
         let mut cursor = Cursor::new(bytes);
@@ -198,7 +198,7 @@ impl Byteable for IndexEntry {
             .context("could not write flags when encoding index entry")?;
 
         cursor
-            .write_all(self.path.as_encoded_bytes())
+            .write_all(self.path.as_os_str().as_encoded_bytes())
             .context("could not write path when encoding index entry")?;
         cursor.write_u8(b'\0')?;
 
@@ -274,12 +274,12 @@ impl Byteable for IndexEntry {
                     bail!("expected null byte after index entry path")
                 }
 
-                OsString::from_vec(path_buf)
+                PathBuf::from(OsString::from_vec(path_buf))
             },
         };
 
         let flag_path_len = entry.flag_path_len();
-        let actual_path_len = entry.path.len();
+        let actual_path_len = entry.path_len();
 
         if flag_path_len != IndexEntry::PATH_LEN_FLAG_POSITION
             && flag_path_len as usize != actual_path_len
