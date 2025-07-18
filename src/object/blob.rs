@@ -22,7 +22,9 @@ pub struct BlobExt {
 ///
 /// This function will fail if any write operation to a `std::io::Cursor` returns an error.
 pub fn as_bytes(data: &[u8]) -> Result<Rc<[u8]>> {
-    let mut header = format!("{} {}\0", Object::BLOB_STRING, data.len()).as_bytes().to_vec();
+    let mut header = format!("{} {}\0", Object::BLOB_STRING, data.len())
+        .as_bytes()
+        .to_vec();
     header.extend(data);
     Ok(header.into())
 }

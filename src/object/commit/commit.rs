@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::str::{FromStr, Split};
 use std::time::{Duration, UNIX_EPOCH};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use time::UtcOffset;
 
 use crate::hashing::Hash;
@@ -39,7 +39,12 @@ pub fn as_bytes(
     commit_str.push_str(&format_commituser(commiter)?);
     commit_str.push_str(&format!("\n{}\n", message));
 
-    let final_str = format!("{} {}\0{}", Object::COMMIT_STRING, commit_str.len(), commit_str); // Adding header
+    let final_str = format!(
+        "{} {}\0{}",
+        Object::COMMIT_STRING,
+        commit_str.len(),
+        commit_str
+    ); // Adding header
 
     Ok(final_str.as_bytes().into())
 }
@@ -68,20 +73,26 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
     let mut cursor = Cursor::new(bytes);
 
     let mut header_buf = Vec::new();
-    cursor.read_until(SPACE_BYTE, &mut header_buf).context("could not read tree header")?;
+    cursor
+        .read_until(SPACE_BYTE, &mut header_buf)
+        .context("could not read tree header")?;
     if header_buf.pop() != Some(SPACE_BYTE) {
         bail!("expected space byte after header");
     }
     if String::from_utf8_lossy(&header_buf) != Object::COMMIT_STRING {
         bail!("file is not a commit string")
     }
-    
+
     let mut length_buf = Vec::new();
-    cursor.read_until(NULL_BYTE, &mut length_buf).context("could not read length")?;
+    cursor
+        .read_until(NULL_BYTE, &mut length_buf)
+        .context("could not read length")?;
     if length_buf.pop() != Some(NULL_BYTE) {
         bail!("expected null byte after tree length")
     }
-    let length: usize = String::from_utf8_lossy(&length_buf).parse().context("length was invalid")?;
+    let length: usize = String::from_utf8_lossy(&length_buf)
+        .parse()
+        .context("length was invalid")?;
 
     let last_position = cursor.position() as usize;
     let remaining = &cursor.into_inner()[last_position..];
@@ -311,7 +322,12 @@ mod tests {
         );
 
         let bytes = result.unwrap();
-        let commit_str = std::str::from_utf8(&bytes).unwrap().split('\0').into_iter().skip(1).collect::<String>();
+        let commit_str = std::str::from_utf8(&bytes)
+            .unwrap()
+            .split('\0')
+            .into_iter()
+            .skip(1)
+            .collect::<String>();
         let mut commit_lines = commit_str.lines();
 
         assert_eq!(
@@ -367,7 +383,12 @@ mod tests {
         let result = as_bytes(&tree_hash, &[], &author, &committer, TEST_MESSAGE);
 
         let bytes = result.unwrap();
-        let commit_str = std::str::from_utf8(&bytes).unwrap().split('\0').into_iter().skip(1).collect::<String>();
+        let commit_str = std::str::from_utf8(&bytes)
+            .unwrap()
+            .split('\0')
+            .into_iter()
+            .skip(1)
+            .collect::<String>();
         let mut commit_lines = commit_str.lines();
 
         assert_eq!(

@@ -2,15 +2,15 @@ use std::collections::HashMap;
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
 use crate::fs::object::write_object;
 use crate::hashing::Hash;
 use crate::object::Object;
 use crate::utils;
 
-use super::tree::TreeExt;
 use super::TreeEntry;
+use super::tree::TreeExt;
 
 struct SubtreeEntry {}
 
@@ -62,14 +62,15 @@ impl TreeBuilder {
     }
 
     /// Builds the tree and subsequent subtrees, assgining `path` to this tree.
-    /// 
+    ///
     /// If `write` is set, the hash would be obtained by writing the object to the object dir, if
     /// it's not, then the hash will just be computed from scratch.
     fn build_as_subtree(mut self, subdir: PathBuf, write: bool) -> Result<TreeExt> {
         let mut subtrees: Vec<TreeExt> = Vec::new();
         for (p, t) in self.subtrees.into_iter() {
             subtrees.push(
-                t.build_as_subtree(p, write).context("could not build tree")?
+                t.build_as_subtree(p, write)
+                    .context("could not build tree")?,
             );
         }
 
@@ -84,7 +85,11 @@ impl TreeBuilder {
             // Adding entry for this subtree in the main tree
             self.entries.push(TreeEntry {
                 // Mode should always be a directory's mode anyways so it can be hardcoded
-                mode: subt.path.metadata().context("could not get directory metadata")?.mode(),
+                mode: subt
+                    .path
+                    .metadata()
+                    .context("could not get directory metadata")?
+                    .mode(),
                 path: subt.path.clone(),
                 hash,
             });
@@ -108,7 +113,9 @@ impl TreeBuilder {
     /// Gets all the entries from this tree builder, consuming it. It then buils a tree object and
     /// subtrees and writes them all to the object directory, returning the hash of the built tree.
     pub fn build_and_write(mut self) -> Result<Hash> {
-        let treext = self.build_as_subtree(PathBuf::new(), true).context("could not write subtrees")?;
+        let treext = self
+            .build_as_subtree(PathBuf::new(), true)
+            .context("could not write subtrees")?;
         write_object(&treext.tree)
     }
 }

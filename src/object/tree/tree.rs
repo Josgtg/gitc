@@ -6,13 +6,13 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::slice::IterMut;
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use byteorder::WriteBytesExt;
 
 use crate::fs::object::write_object;
-use crate::hashing::{Hash, HASH_BYTE_LEN};
-use crate::object::commit::TREE_STR;
+use crate::hashing::{HASH_BYTE_LEN, Hash};
 use crate::object::Object;
+use crate::object::commit::TREE_STR;
 
 const NULL_BYTE: u8 = b'\0';
 const SPACE_BYTE: u8 = b' ';
@@ -45,13 +45,13 @@ pub fn as_bytes(entries: &[TreeEntry]) -> Result<Rc<[u8]>> {
     // Cursor for tree entries
     let mut entries_bytes: Vec<u8> = Vec::new();
     for e in entries {
-        entries_bytes.extend(
-            format!("{:o} {}\0", e.mode, e.path.to_string_lossy()).as_bytes(),
-        );
+        entries_bytes.extend(format!("{:o} {}\0", e.mode, e.path.to_string_lossy()).as_bytes());
         entries_bytes.extend(e.hash.as_ref());
     }
 
-    let mut header = format!("{} {}\0", Object::TREE_STRING, entries_bytes.len()).as_bytes().to_vec();
+    let mut header = format!("{} {}\0", Object::TREE_STRING, entries_bytes.len())
+        .as_bytes()
+        .to_vec();
     header.extend(entries_bytes);
 
     Ok(header.into())
@@ -345,10 +345,12 @@ mod tests {
         let result = from_bytes(input);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("object is not a tree"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("object is not a tree")
+        );
     }
 
     #[test]
@@ -357,10 +359,12 @@ mod tests {
         let result = from_bytes(input);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("expected space after object type"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("expected space after object type")
+        );
     }
 
     #[test]
@@ -369,10 +373,12 @@ mod tests {
         let result = from_bytes(input);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("expected null byte after data length"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("expected null byte after data length")
+        );
     }
 
     #[test]
@@ -381,10 +387,12 @@ mod tests {
         let result = from_bytes(input);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("could not read data object lenght as a number"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("could not read data object lenght as a number")
+        );
     }
 
     #[test]
@@ -408,10 +416,12 @@ mod tests {
         let result = from_bytes(input);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("expected space after tree entry mode"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("expected space after tree entry mode")
+        );
     }
 
     #[test]
@@ -420,10 +430,12 @@ mod tests {
         let result = from_bytes(input);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("expected null byte after tree entry path"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("expected null byte after tree entry path")
+        );
     }
 
     #[test]
@@ -432,10 +444,12 @@ mod tests {
         let result = from_bytes(input);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("could not read tree entry hash"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("could not read tree entry hash")
+        );
     }
 
     #[test]
@@ -447,10 +461,12 @@ mod tests {
         let result = from_bytes(&input);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("could not get mode from bytes read"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("could not get mode from bytes read")
+        );
     }
 
     #[test]

@@ -4,12 +4,12 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 
-use crate::{utils, Constants};
 use crate::byteable::Byteable;
 use crate::hashing::Hash;
 use crate::object::Object;
 use crate::object::blob::BlobExt;
 use crate::utils::zlib;
+use crate::{Constants, utils};
 
 /// Given an object, gets it's serialized representation and hash, and writes it to the object
 /// directory.

@@ -12,8 +12,8 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::Constants;
 use crate::byteable::Byteable;
-use crate::utils::path::relative_path;
 use crate::hashing::Hash;
+use crate::utils::path::relative_path;
 
 use super::FileStage;
 

@@ -1,5 +1,5 @@
-use std::path::{Path, PathBuf};
 use std::ffi::{OsStr, OsString};
+use std::path::{Path, PathBuf};
 
 /// Removes the first component from a path.
 ///
@@ -22,7 +22,6 @@ pub fn strip_root(path: PathBuf) -> (Option<PathBuf>, PathBuf) {
     let root = components.next().map(|c| PathBuf::from(c.as_os_str()));
     (root, components.as_path().to_owned())
 }
-
 
 /// Returns `path` relative to `base`.
 ///
@@ -63,4 +62,3 @@ pub fn clean_path(path: PathBuf, absolute: bool) -> PathBuf {
 
     cleaned
 }
-

@@ -5,9 +5,9 @@ use anyhow::{Context, Result};
 use crate::fs::index::read_index_file;
 use crate::fs::object::write_object;
 use crate::hashing::Hash;
+use crate::object::Object;
 use crate::object::commit::CommitUser;
 use crate::object::tree::TreeBuilder;
-use crate::object::Object;
 
 #[allow(unused)]
 pub fn commit(message: &str) -> Result<String> {
@@ -19,7 +19,9 @@ pub fn commit(message: &str) -> Result<String> {
         tree_builder.add_object(e.mode, e.path().to_owned(), e.object_hash());
     }
 
-    let tree = tree_builder.build_and_write().context("could not write tree object")?;
+    let tree = tree_builder
+        .build_and_write()
+        .context("could not write tree object")?;
 
     // Getting the direct parent
     let current_branch =
