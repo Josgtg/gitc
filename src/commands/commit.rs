@@ -30,7 +30,7 @@ pub fn commit(message: &str) -> Result<String> {
     if current_branch.exists() {
         // If it does not exist then this is the first commit and there is no parents
         let parent_hash_bytes =
-            std::fs::read(&current_branch).context("could not read current branches reference")?;
+            std::fs::read(&current_branch).context("could not read current branch reference")?;
         let parent_hash_str = String::from_utf8_lossy(&parent_hash_bytes);
         parents.push(
             Hash::from_str(&parent_hash_str)

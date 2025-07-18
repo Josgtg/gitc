@@ -45,7 +45,7 @@ pub fn as_bytes(entries: &[TreeEntry]) -> Result<Rc<[u8]>> {
     // Cursor for tree entries
     let mut entries_bytes: Vec<u8> = Vec::new();
     for e in entries {
-        entries_bytes.extend(format!("{:o} {}\0", e.mode, e.path.to_string_lossy()).as_bytes());
+        entries_bytes.extend(format!("{} {}\0", e.mode, e.path.to_string_lossy()).as_bytes());
         entries_bytes.extend(e.hash.as_ref());
     }
 
@@ -157,7 +157,7 @@ mod tests {
     // Constants for test data
     const TEST_MODE_FILE: u32 = 0o100644;
     const TEST_MODE_EXECUTABLE: u32 = 0o100755;
-    const TEST_MODE_DIR: u32 = 0o040000;
+    const TEST_MODE_DIR: u32 = 0o40755;
     const TEST_HASH_1: &str = "99ad2293829e9638b4dfeeb7bc405a4d140e84e3";
     const TEST_HASH_2: &str = "3e9713cc8320cc020e39b53566b2a34022608edc";
     const TEST_HASH_3: &str = "99800b85d3383e3a2fb45eb7d0066a4879a9dad0";

@@ -8,12 +8,14 @@ use crate::fs::object::write_object;
 use crate::hashing::Hash;
 use crate::object::Object;
 use crate::utils;
+use crate::utils::nums::as_octal;
 
 use super::TreeEntry;
 use super::tree::TreeExt;
 
-struct SubtreeEntry {}
+const DEFAULT_DIR_MODE: u32 = 0o40000;
 
+#[derive(Debug)]
 pub struct TreeBuilder {
     entries: Vec<TreeEntry>,
     /// Every entry on the hashmap represents a subtree, where the path is relative to it's parent
@@ -54,10 +56,10 @@ impl TreeBuilder {
             } else {
                 let mut tree = TreeBuilder::new();
                 tree.add_object(mode, stripped_path, hash);
-                self.subtrees.insert(root.clone(), tree);
+                self.subtrees.insert(root, tree);
             }
         } else {
-            self.entries.push(TreeEntry { mode, path, hash });
+            self.entries.push(TreeEntry { mode: as_octal(mode), path, hash });
         }
     }
 
@@ -76,20 +78,22 @@ impl TreeBuilder {
 
         // Updating undefined hashes
         let mut hash: Hash;
+        let mut mode: u32;
         for subt in subtrees.iter() {
             hash = if write {
                 write_object(&subt.tree).context("could not write subtree")?
             } else {
                 subt.tree.hash().context("could not hash tree")?
             };
+            mode = if let Ok(m) = subt.path.metadata() {
+                m.mode()
+            } else {
+                DEFAULT_DIR_MODE
+            };
             // Adding entry for this subtree in the main tree
             self.entries.push(TreeEntry {
                 // Mode should always be a directory's mode anyways so it can be hardcoded
-                mode: subt
-                    .path
-                    .metadata()
-                    .context("could not get directory metadata")?
-                    .mode(),
+                mode: as_octal(mode),
                 path: subt.path.clone(),
                 hash,
             });
@@ -120,32 +124,31 @@ impl TreeBuilder {
     }
 }
 
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
     use crate::hashing::Hash;
     use crate::object::Object;
-    use std::path::PathBuf;
 
     // Constants for test data
     const TEST_MODE_FILE: u32 = 0o100644;
     const TEST_MODE_EXECUTABLE: u32 = 0o100755;
-    const TEST_MODE_DIR: u32 = 0o040000;
     const TEST_HASH_1: [u8; 20] = [
-        0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde,
-        0xf0, 0x12, 0x34, 0x56, 0x78,
+        0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0,
+        0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0,
+        0x12, 0x34, 0x56, 0x78
     ];
     const TEST_HASH_2: [u8; 20] = [
-        0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78,
-        0x9a, 0xbc, 0xde, 0xf0, 0x12,
+        0xab, 0xcd, 0xef, 0x12, 0x34, 0x56, 0x78, 0x9a,
+        0xbc, 0xde, 0xf0, 0x12, 0x34, 0x56, 0x78, 0x9a,
+        0xbc, 0xde, 0xf0, 0x12
     ];
     const TEST_HASH_3: [u8; 20] = [
-        0xff, 0xee, 0xdd, 0xcc, 0xbb, 0xaa, 0x99, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,
-        0x00, 0xff, 0xee, 0xdd, 0xcc,
-    ];
-    const TEST_HASH_4: [u8; 20] = [
-        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-        0x10, 0x11, 0x12, 0x13, 0x14,
+        0xff, 0xee, 0xdd, 0xcc, 0xbb, 0xaa, 0x99, 0x88,
+        0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11, 0x00,
+        0xff, 0xee, 0xdd, 0xcc
     ];
 
     // Helper functions
@@ -153,103 +156,82 @@ mod tests {
         Hash::from(bytes)
     }
 
-    fn create_file_path(path: &str) -> PathBuf {
-        PathBuf::from(path)
-    }
-
-    fn create_dir_path(path: &str) -> PathBuf {
-        let mut pb = PathBuf::from(path);
-        // Ensure it's treated as a directory by adding a trailing separator if needed
-        if !pb.as_os_str().to_string_lossy().ends_with('/') {
-            pb = pb.join("");
-        }
-        pb
-    }
-
-    fn assert_entry_exists(
-        entries: &[TreeEntry],
-        expected_path: &str,
-        expected_mode: u32,
-        expected_hash: Hash,
-    ) {
+    fn assert_entry_exists(entries: &[TreeEntry], expected_path: &str, expected_mode: u32, expected_hash: &Hash) {
+        let expected_mode_octal = as_octal(expected_mode);
         let found = entries.iter().find(|entry| {
-            entry.path == PathBuf::from(expected_path)
-                && entry.mode == expected_mode
-                && entry.hash == expected_hash
+            entry.path == PathBuf::from(expected_path) && 
+            entry.mode == expected_mode_octal && 
+            entry.hash == *expected_hash
         });
-        assert!(
-            found.is_some(),
-            "Expected entry not found: path={}, mode={}, hash={:?}",
-            expected_path,
-            expected_mode,
-            expected_hash
-        );
-    }
-
-    fn count_entries_with_path_prefix(entries: &[TreeEntry], prefix: &str) -> usize {
-        entries
-            .iter()
-            .filter(|entry| entry.path.starts_with(prefix))
-            .count()
+        assert!(found.is_some(), 
+                "Expected entry not found: path={}, mode={}", 
+                expected_path, expected_mode_octal);
     }
 
     #[test]
     fn test_new_tree_builder() {
         let builder = TreeBuilder::new();
         assert_eq!(builder.entries.len(), 0);
-        assert!(builder.subtrees.is_none());
+        assert_eq!(builder.subtrees.len(), 0);
     }
 
     #[test]
     fn test_add_single_file() {
         let mut builder = TreeBuilder::new();
         let hash = create_hash(TEST_HASH_1);
-        let path = create_file_path("file1.txt");
-
+        let path = PathBuf::from("file1.txt");
+        
         builder.add_object(TEST_MODE_FILE, path.clone(), hash.clone());
-
+        
         assert_eq!(builder.entries.len(), 1);
-        assert_eq!(builder.entries[0].mode, TEST_MODE_FILE);
+        assert_eq!(builder.entries[0].mode, as_octal(TEST_MODE_FILE));
         assert_eq!(builder.entries[0].path, path);
         assert_eq!(builder.entries[0].hash, hash);
-        assert!(builder.subtrees.is_none());
+        assert_eq!(builder.subtrees.len(), 0);
     }
 
     #[test]
-    fn test_add_multiple_files() {
+    fn test_add_multiple_root_files() {
         let mut builder = TreeBuilder::new();
         let hash1 = create_hash(TEST_HASH_1);
         let hash2 = create_hash(TEST_HASH_2);
-        let path1 = create_file_path("file1.txt");
-        let path2 = create_file_path("file2.txt");
-
-        builder.add_object(TEST_MODE_FILE, path1.clone(), hash1);
-        builder.add_object(TEST_MODE_EXECUTABLE, path2.clone(), hash2);
-
+        
+        builder.add_object(TEST_MODE_FILE, PathBuf::from("file1.txt"), hash1);
+        builder.add_object(TEST_MODE_EXECUTABLE, PathBuf::from("file2.txt"), hash2);
+        
         assert_eq!(builder.entries.len(), 2);
-        assert_eq!(builder.entries[0].path, path1);
-        assert_eq!(builder.entries[1].path, path2);
-        assert!(builder.subtrees.is_none());
+        assert_eq!(builder.subtrees.len(), 0);
     }
 
     #[test]
-    fn test_add_file_in_directory() {
+    fn test_add_directory_ignored() {
         let mut builder = TreeBuilder::new();
         let hash = create_hash(TEST_HASH_1);
-        let file_path = create_dir_path("src/main.rs");
-        dbg!(file_path.is_dir());
-        builder.add_object(TEST_MODE_FILE, file_path, hash);
-
+        let dir_path = PathBuf::from("src"); // Directory path
+        
+        builder.add_object(TEST_MODE_FILE, dir_path, hash);
+        
+        // Directory should be ignored
         assert_eq!(builder.entries.len(), 0);
-        assert!(builder.subtrees.is_some());
+        assert_eq!(builder.subtrees.len(), 0);
+    }
 
-        let subtrees = builder.subtrees.as_ref().unwrap();
-        assert_eq!(subtrees.len(), 1);
-        assert!(subtrees.contains_key(&PathBuf::from("src")));
-
-        let src_subtree = subtrees.get(&PathBuf::from("src")).unwrap();
+    #[test]
+    fn test_add_file_with_subdirectory() {
+        let mut builder = TreeBuilder::new();
+        let hash = create_hash(TEST_HASH_1);
+        let file_path = PathBuf::from("src/main.rs");
+        
+        builder.add_object(TEST_MODE_FILE, file_path, hash.clone());
+        
+        assert_eq!(builder.entries.len(), 0);
+        assert_eq!(builder.subtrees.len(), 1);
+        assert!(builder.subtrees.contains_key(&PathBuf::from("src")));
+        
+        let src_subtree = builder.subtrees.get(&PathBuf::from("src")).unwrap();
         assert_eq!(src_subtree.entries.len(), 1);
         assert_eq!(src_subtree.entries[0].path, PathBuf::from("main.rs"));
+        assert_eq!(src_subtree.entries[0].hash, hash);
     }
 
     #[test]
@@ -257,21 +239,16 @@ mod tests {
         let mut builder = TreeBuilder::new();
         let hash1 = create_hash(TEST_HASH_1);
         let hash2 = create_hash(TEST_HASH_2);
-        let file1_path = create_dir_path("src/main.rs");
-        let file2_path = create_dir_path("src/lib.rs");
-
-        builder.add_object(TEST_MODE_FILE, file1_path, hash1);
-        builder.add_object(TEST_MODE_FILE, file2_path, hash2);
-
+        
+        builder.add_object(TEST_MODE_FILE, PathBuf::from("src/main.rs"), hash1);
+        builder.add_object(TEST_MODE_FILE, PathBuf::from("src/lib.rs"), hash2);
+        
         assert_eq!(builder.entries.len(), 0);
-        assert!(builder.subtrees.is_some());
-
-        let subtrees = builder.subtrees.as_ref().unwrap();
-        assert_eq!(subtrees.len(), 1);
-
-        let src_subtree = subtrees.get(&PathBuf::from("src")).unwrap();
+        assert_eq!(builder.subtrees.len(), 1);
+        
+        let src_subtree = builder.subtrees.get(&PathBuf::from("src")).unwrap();
         assert_eq!(src_subtree.entries.len(), 2);
-
+        
         let paths: Vec<_> = src_subtree.entries.iter().map(|e| &e.path).collect();
         assert!(paths.contains(&&PathBuf::from("main.rs")));
         assert!(paths.contains(&&PathBuf::from("lib.rs")));
@@ -282,198 +259,68 @@ mod tests {
         let mut builder = TreeBuilder::new();
         let hash1 = create_hash(TEST_HASH_1);
         let hash2 = create_hash(TEST_HASH_2);
-        let file1_path = create_dir_path("src/main.rs");
-        let file2_path = create_dir_path("tests/test.rs");
-
-        builder.add_object(TEST_MODE_FILE, file1_path, hash1);
-        builder.add_object(TEST_MODE_FILE, file2_path, hash2);
-
+        
+        builder.add_object(TEST_MODE_FILE, PathBuf::from("src/main.rs"), hash1);
+        builder.add_object(TEST_MODE_FILE, PathBuf::from("tests/test.rs"), hash2);
+        
         assert_eq!(builder.entries.len(), 0);
-        assert!(builder.subtrees.is_some());
-
-        let subtrees = builder.subtrees.as_ref().unwrap();
-        assert_eq!(subtrees.len(), 2);
-        assert!(subtrees.contains_key(&PathBuf::from("src")));
-        assert!(subtrees.contains_key(&PathBuf::from("tests")));
-
-        let src_subtree = subtrees.get(&PathBuf::from("src")).unwrap();
-        assert_eq!(src_subtree.entries.len(), 1);
-        assert_eq!(src_subtree.entries[0].path, PathBuf::from("main.rs"));
-
-        let tests_subtree = subtrees.get(&PathBuf::from("tests")).unwrap();
-        assert_eq!(tests_subtree.entries.len(), 1);
-        assert_eq!(tests_subtree.entries[0].path, PathBuf::from("test.rs"));
+        assert_eq!(builder.subtrees.len(), 2);
+        assert!(builder.subtrees.contains_key(&PathBuf::from("src")));
+        assert!(builder.subtrees.contains_key(&PathBuf::from("tests")));
     }
 
     #[test]
     fn test_nested_directories() {
         let mut builder = TreeBuilder::new();
         let hash = create_hash(TEST_HASH_1);
-        let nested_path = create_dir_path("src/utils/helper.rs");
-
-        builder.add_object(TEST_MODE_FILE, nested_path, hash);
-
+        
+        builder.add_object(TEST_MODE_FILE, PathBuf::from("src/utils/helper.rs"), hash.clone());
+        
         assert_eq!(builder.entries.len(), 0);
-        assert!(builder.subtrees.is_some());
-
-        let subtrees = builder.subtrees.as_ref().unwrap();
-        assert_eq!(subtrees.len(), 1);
-        assert!(subtrees.contains_key(&PathBuf::from("src")));
-
-        let src_subtree = subtrees.get(&PathBuf::from("src")).unwrap();
+        assert_eq!(builder.subtrees.len(), 1);
+        assert!(builder.subtrees.contains_key(&PathBuf::from("src")));
+        
+        let src_subtree = builder.subtrees.get(&PathBuf::from("src")).unwrap();
         assert_eq!(src_subtree.entries.len(), 0);
-        assert!(src_subtree.subtrees.is_some());
-
-        let src_subtrees = src_subtree.subtrees.as_ref().unwrap();
-        assert_eq!(src_subtrees.len(), 1);
-        assert!(src_subtrees.contains_key(&PathBuf::from("utils")));
-
-        let utils_subtree = src_subtrees.get(&PathBuf::from("utils")).unwrap();
+        assert_eq!(src_subtree.subtrees.len(), 1);
+        assert!(src_subtree.subtrees.contains_key(&PathBuf::from("utils")));
+        
+        let utils_subtree = src_subtree.subtrees.get(&PathBuf::from("utils")).unwrap();
         assert_eq!(utils_subtree.entries.len(), 1);
         assert_eq!(utils_subtree.entries[0].path, PathBuf::from("helper.rs"));
+        assert_eq!(utils_subtree.entries[0].hash, hash);
     }
 
     #[test]
-    fn test_mixed_files_and_directories() {
+    fn test_mixed_root_and_subdirectory_files() {
         let mut builder = TreeBuilder::new();
         let hash1 = create_hash(TEST_HASH_1);
         let hash2 = create_hash(TEST_HASH_2);
         let hash3 = create_hash(TEST_HASH_3);
-
-        let root_file = create_file_path("README.md");
-        let src_file = create_dir_path("src/main.rs");
-        let test_file = create_dir_path("tests/test.rs");
-
-        builder.add_object(TEST_MODE_FILE, root_file.clone(), hash1);
-        builder.add_object(TEST_MODE_FILE, src_file, hash2);
-        builder.add_object(TEST_MODE_FILE, test_file, hash3);
-
+        
+        builder.add_object(TEST_MODE_FILE, PathBuf::from("README.md"), hash1);
+        builder.add_object(TEST_MODE_FILE, PathBuf::from("src/main.rs"), hash2);
+        builder.add_object(TEST_MODE_FILE, PathBuf::from("tests/test.rs"), hash3);
+        
         // Should have one root-level file
         assert_eq!(builder.entries.len(), 1);
-        assert_eq!(builder.entries[0].path, root_file);
-
+        assert_eq!(builder.entries[0].path, PathBuf::from("README.md"));
+        
         // Should have two subtrees
-        assert!(builder.subtrees.is_some());
-        let subtrees = builder.subtrees.as_ref().unwrap();
-        assert_eq!(subtrees.len(), 2);
-        assert!(subtrees.contains_key(&PathBuf::from("src")));
-        assert!(subtrees.contains_key(&PathBuf::from("tests")));
+        assert_eq!(builder.subtrees.len(), 2);
+        assert!(builder.subtrees.contains_key(&PathBuf::from("src")));
+        assert!(builder.subtrees.contains_key(&PathBuf::from("tests")));
     }
 
     #[test]
-    fn test_build_entries_empty() {
+    fn test_build_empty_tree() {
         let builder = TreeBuilder::new();
-        let entries = builder.build_entries();
-        assert_eq!(entries.len(), 0);
-    }
-
-    #[test]
-    fn test_build_entries_root_files_only() {
-        let mut builder = TreeBuilder::new();
-        let hash1 = create_hash(TEST_HASH_1);
-        let hash2 = create_hash(TEST_HASH_2);
-
-        builder.add_object(TEST_MODE_FILE, create_file_path("file1.txt"), hash1.clone());
-        builder.add_object(TEST_MODE_FILE, create_file_path("file2.txt"), hash2.clone());
-
-        let entries = builder.build_entries();
-        assert_eq!(entries.len(), 2);
-
-        assert_entry_exists(&entries, "file1.txt", TEST_MODE_FILE, hash1);
-        assert_entry_exists(&entries, "file2.txt", TEST_MODE_FILE, hash2);
-    }
-
-    #[test]
-    fn test_build_entries_with_subtrees() {
-        let mut builder = TreeBuilder::new();
-        let hash1 = create_hash(TEST_HASH_1);
-        let hash2 = create_hash(TEST_HASH_2);
-
-        builder.add_object(TEST_MODE_FILE, create_file_path("README.md"), hash1.clone());
-        builder.add_object(
-            TEST_MODE_FILE,
-            create_dir_path("src/main.rs"),
-            hash2.clone(),
-        );
-
-        let entries = builder.build_entries();
-        assert_eq!(entries.len(), 2);
-
-        assert_entry_exists(&entries, "README.md", TEST_MODE_FILE, hash1);
-        assert_entry_exists(&entries, "src/main.rs", TEST_MODE_FILE, hash2);
-    }
-
-    #[test]
-    fn test_build_entries_nested_subtrees() {
-        let mut builder = TreeBuilder::new();
-        let hash1 = create_hash(TEST_HASH_1);
-        let hash2 = create_hash(TEST_HASH_2);
-        let hash3 = create_hash(TEST_HASH_3);
-
-        builder.add_object(TEST_MODE_FILE, create_file_path("root.txt"), hash1.clone());
-        builder.add_object(
-            TEST_MODE_FILE,
-            create_dir_path("src/main.rs"),
-            hash2.clone(),
-        );
-        builder.add_object(
-            TEST_MODE_FILE,
-            create_dir_path("src/utils/helper.rs"),
-            hash3.clone(),
-        );
-
-        let entries = builder.build_entries();
-        assert_eq!(entries.len(), 3);
-
-        assert_entry_exists(&entries, "root.txt", TEST_MODE_FILE, hash1);
-        assert_entry_exists(&entries, "src/main.rs", TEST_MODE_FILE, hash2);
-        assert_entry_exists(&entries, "src/utils/helper.rs", TEST_MODE_FILE, hash3);
-    }
-
-    #[test]
-    fn test_build_entries_multiple_subtrees() {
-        let mut builder = TreeBuilder::new();
-        let hash1 = create_hash(TEST_HASH_1);
-        let hash2 = create_hash(TEST_HASH_2);
-        let hash3 = create_hash(TEST_HASH_3);
-        let hash4 = create_hash(TEST_HASH_4);
-
-        builder.add_object(
-            TEST_MODE_FILE,
-            create_dir_path("src/main.rs"),
-            hash1.clone(),
-        );
-        builder.add_object(TEST_MODE_FILE, create_dir_path("src/lib.rs"), hash2.clone());
-        builder.add_object(
-            TEST_MODE_FILE,
-            create_dir_path("tests/test1.rs"),
-            hash3.clone(),
-        );
-        builder.add_object(
-            TEST_MODE_FILE,
-            create_dir_path("tests/test2.rs"),
-            hash4.clone(),
-        );
-
-        let entries = builder.build_entries();
-        assert_eq!(entries.len(), 4);
-
-        assert_entry_exists(&entries, "src/main.rs", TEST_MODE_FILE, hash1);
-        assert_entry_exists(&entries, "src/lib.rs", TEST_MODE_FILE, hash2);
-        assert_entry_exists(&entries, "tests/test1.rs", TEST_MODE_FILE, hash3);
-        assert_entry_exists(&entries, "tests/test2.rs", TEST_MODE_FILE, hash4);
-
-        // Verify correct grouping
-        assert_eq!(count_entries_with_path_prefix(&entries, "src/"), 2);
-        assert_eq!(count_entries_with_path_prefix(&entries, "tests/"), 2);
-    }
-
-    #[test]
-    fn test_build_object_empty() {
-        let builder = TreeBuilder::new();
-        let obj = builder.build();
-
-        match obj {
+        let result = builder.build().unwrap();
+        
+        assert_eq!(result.path, PathBuf::new());
+        assert_eq!(result.subtrees.len(), 0);
+        
+        match result.tree {
             Object::Tree { entries } => {
                 assert_eq!(entries.len(), 0);
             }
@@ -482,77 +329,115 @@ mod tests {
     }
 
     #[test]
-    fn test_build_object_with_files() {
+    fn test_build_root_files_only() {
         let mut builder = TreeBuilder::new();
         let hash1 = create_hash(TEST_HASH_1);
         let hash2 = create_hash(TEST_HASH_2);
-
-        builder.add_object(TEST_MODE_FILE, create_file_path("file1.txt"), hash1.clone());
-        builder.add_object(
-            TEST_MODE_FILE,
-            create_dir_path("src/main.rs"),
-            hash2.clone(),
-        );
-
-        let obj = builder.build();
-
-        match obj {
+        
+        builder.add_object(TEST_MODE_FILE, PathBuf::from("file1.txt"), hash1.clone());
+        builder.add_object(TEST_MODE_FILE, PathBuf::from("file2.txt"), hash2.clone());
+        
+        let result = builder.build().unwrap();
+        
+        assert_eq!(result.path, PathBuf::new());
+        assert_eq!(result.subtrees.len(), 0);
+        
+        match result.tree {
             Object::Tree { entries } => {
                 assert_eq!(entries.len(), 2);
-                assert_entry_exists(&entries, "file1.txt", TEST_MODE_FILE, hash1);
-                assert_entry_exists(&entries, "src/main.rs", TEST_MODE_FILE, hash2);
+                    assert_entry_exists(&entries, "file1.txt", TEST_MODE_FILE, &hash1);
+                assert_entry_exists(&entries, "file2.txt", TEST_MODE_FILE, &hash2);
             }
             _ => panic!("Expected Tree object"),
         }
     }
 
     #[test]
-    fn test_path_reconstruction_preserves_structure() {
+    fn test_build_with_subtrees() {
         let mut builder = TreeBuilder::new();
         let hash1 = create_hash(TEST_HASH_1);
         let hash2 = create_hash(TEST_HASH_2);
-        let hash3 = create_hash(TEST_HASH_3);
-
-        let original_paths = vec!["src/main.rs", "src/lib.rs", "tests/integration/test.rs"];
-
-        builder.add_object(TEST_MODE_FILE, create_dir_path(original_paths[0]), hash1);
-        builder.add_object(TEST_MODE_FILE, create_dir_path(original_paths[1]), hash2);
-        builder.add_object(TEST_MODE_FILE, create_dir_path(original_paths[2]), hash3);
-
-        let entries = builder.build_entries();
-        assert_eq!(entries.len(), 3);
-
-        // Verify all original paths are preserved
-        for original_path in original_paths {
-            let found = entries
-                .iter()
-                .any(|entry| entry.path == PathBuf::from(original_path));
-            assert!(found, "Path '{}' not found in built entries", original_path);
+        
+        builder.add_object(TEST_MODE_FILE, PathBuf::from("README.md"), hash1.clone());
+        builder.add_object(TEST_MODE_FILE, PathBuf::from("src/main.rs"), hash2.clone());
+        
+        let result = builder.build().unwrap();
+        
+        assert_eq!(result.path, PathBuf::new());
+        assert_eq!(result.subtrees.len(), 1);
+        
+        // Check that subtree is present
+        assert_eq!(result.subtrees[0].path, PathBuf::from("src"));
+        
+        match &result.subtrees[0].tree {
+            Object::Tree { entries } => {
+                assert_eq!(entries.len(), 1);
+                assert_entry_exists(&entries, "main.rs", TEST_MODE_FILE, &hash2);
+            }
+            _ => panic!("Expected Tree object"),
+        }
+        
+        // Check that root tree has entries for both the file and the subtree
+        match result.tree {
+            Object::Tree { entries } => {
+                assert_eq!(entries.len(), 2); // README.md + src/ directory entry
+                assert_entry_exists(&entries, "README.md", TEST_MODE_FILE, &hash1);
+                // The src directory entry should be present (added by build_as_subtree)
+                let src_entry = entries.iter().find(|e| e.path == PathBuf::from("src"));
+                assert!(src_entry.is_some(), "src directory entry not found");
+            }
+            _ => panic!("Expected Tree object"),
         }
     }
 
     #[test]
-    fn test_single_character_directory_names() {
+    fn test_build_nested_structure() {
         let mut builder = TreeBuilder::new();
-        let hash = create_hash(TEST_HASH_1);
+        let hash1 = create_hash(TEST_HASH_1);
+        let hash2 = create_hash(TEST_HASH_2);
+        
+        builder.add_object(TEST_MODE_FILE, PathBuf::from("src/utils/helper.rs"), hash1.clone());
+        builder.add_object(TEST_MODE_FILE, PathBuf::from("src/main.rs"), hash2);
 
-        builder.add_object(TEST_MODE_FILE, create_dir_path("a/b/c.txt"), hash.clone());
-
-        let entries = builder.build_entries();
-        assert_eq!(entries.len(), 1);
-        assert_entry_exists(&entries, "a/b/c.txt", TEST_MODE_FILE, hash);
+        let result = builder.build().unwrap();
+        
+        assert_eq!(result.path, PathBuf::new());
+        assert_eq!(result.subtrees.len(), 1);
+        
+        // Check src subtree
+        let src_subtree = &result.subtrees[0];
+        assert_eq!(src_subtree.path, PathBuf::from("src"));
+        assert_eq!(src_subtree.subtrees.len(), 1);
+        
+        // Check utils subtree
+        let utils_subtree = &src_subtree.subtrees[0];
+        assert_eq!(utils_subtree.path, PathBuf::from("utils"));
+    
+        match &utils_subtree.tree {
+            Object::Tree { entries } => {
+                assert_eq!(entries.len(), 1);
+                assert_entry_exists(&entries, "helper.rs", TEST_MODE_FILE, &hash1);
+            }
+            _ => panic!("Expected Tree object"),
+        }
     }
 
     #[test]
-    fn test_deep_nesting() {
+    fn test_single_component_vs_multiple_components() {
         let mut builder = TreeBuilder::new();
-        let hash = create_hash(TEST_HASH_1);
-
-        let deep_path = "level1/level2/level3/level4/level5/file.txt";
-        builder.add_object(TEST_MODE_FILE, create_dir_path(deep_path), hash.clone());
-
-        let entries = builder.build_entries();
-        assert_eq!(entries.len(), 1);
-        assert_entry_exists(&entries, deep_path, TEST_MODE_FILE, hash);
+        let hash1 = create_hash(TEST_HASH_1);
+        let hash2 = create_hash(TEST_HASH_2);
+        
+        // Single component - should go to entries
+        builder.add_object(TEST_MODE_FILE, PathBuf::from("root.txt"), hash1);
+        
+        // Multiple components - should create subtree
+        builder.add_object(TEST_MODE_FILE, PathBuf::from("dir/file.txt"), hash2);
+        
+        assert_eq!(builder.entries.len(), 1);
+        assert_eq!(builder.subtrees.len(), 1);
+        
+        assert_eq!(builder.entries[0].path, PathBuf::from("root.txt"));
+        assert!(builder.subtrees.contains_key(&PathBuf::from("dir")));
     }
 }
