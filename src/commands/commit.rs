@@ -3,9 +3,9 @@ use anyhow::{Context, Result};
 use crate::fs::index::read_index_file;
 use crate::fs::object::write_object;
 use crate::hashing::Hash;
-use crate::object::Object;
 use crate::object::commit::CommitUser;
 use crate::object::tree::TreeBuilder;
+use crate::object::Object;
 
 #[allow(unused)]
 pub fn commit(message: &str) -> Result<String> {
@@ -18,7 +18,7 @@ pub fn commit(message: &str) -> Result<String> {
     }
 
     let tree = tree_builder.build();
-    let tree_hash = tree.hash().context("could not get tree hash")?;
+    let tree_hash = write_object(&tree).context("could not write tree object")?;
 
     // Getting the direct parent
     let current_branch =
@@ -39,13 +39,13 @@ pub fn commit(message: &str) -> Result<String> {
         parents: parents.into(),
         author: CommitUser::default(),
         committer: CommitUser::default(),
-        message: "test commit".into(),
+        message: message.into(),
     };
 
     let commit_hash = write_object(&commit).context("could not write commit file")?;
 
-    std::fs::write(current_branch, commit_hash)
-        .context("could not update current branch (make it point to the new commit))");
+    std::fs::write(current_branch, commit_hash.to_string().as_bytes())
+        .context("could not update current branch (make it point to the new commit))")?;
 
     Ok("Commited changes successfully".into())
 }

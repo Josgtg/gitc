@@ -11,13 +11,16 @@ use anyhow::Result;
 use crate::Constants;
 
 /// Reads the path stored inside the HEAD file.
-///
+//?/
 /// # Errors
 ///
 /// This function will fail if the HEAD file could not be opened or read from.
 pub fn get_current_branch_path() -> Result<PathBuf> {
     let bytes = fs::read(Constants::head_path()).context("could not read from HEAD file")?;
-    Ok(PathBuf::from(OsString::from_vec(bytes)))
+    let path_str = String::from_utf8_lossy(&bytes);
+    let stripped_path_str = path_str.strip_prefix(Constants::HEAD_HEADER).context("HEAD file had an incorrect header")?;
+    let relative_path = PathBuf::from(stripped_path_str);
+    Ok(Constants::repository_path().join(relative_path))
 }
 
 /// Returns all the paths of the files and subdirectories inside of `dir`.

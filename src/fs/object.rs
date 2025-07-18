@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 
-use crate::Constants;
+use crate::{utils, Constants};
 use crate::byteable::Byteable;
 use crate::hashing::Hash;
 use crate::object::Object;
@@ -22,19 +22,11 @@ use crate::utils::zlib;
 /// This function will fail if the object could not be encoded or the data could not be written.
 pub fn write_object(object: &Object) -> Result<Hash> {
     let bytes = object.as_bytes().context("could not encode object")?;
-    let hash = Hash::compute(bytes.as_ref());
+    let hash = Hash::compute(&bytes);
 
     write_to_object_dir(&bytes, &hash).context("could not write to object directory")?;
 
     Ok(hash)
-}
-
-/// Same as `write_to_object_dir` but this function compresses the bytes before writing them.
-pub fn write_blob_to_object_dir(bytes: &[u8], hash: &Hash) -> Result<()> {
-    let compressed = zlib::compress(bytes)
-        .context("could not compress object when trying to write to object dir")?;
-
-    write_to_object_dir(compressed.as_ref(), hash)
 }
 
 /// Returns the directory in the first position and the filename in the second one.
@@ -45,7 +37,7 @@ fn get_object_hash_and_filename(hash_str: &str) -> (&str, &str) {
 }
 
 /// Writes the given bytes as an object in the objects
-/// directory.
+/// directory, compressing them using zlib.
 ///
 /// Use the `write_object` function if you have not already computed the bytes or the hash of an
 /// object.
@@ -53,7 +45,7 @@ fn get_object_hash_and_filename(hash_str: &str) -> (&str, &str) {
 /// # Errors
 ///
 /// This function can fail if there was not possible to create and write to the file.
-pub fn write_to_object_dir(object_bytes: &[u8], hash: &Hash) -> Result<()> {
+pub fn write_to_object_dir(bytes: &[u8], hash: &Hash) -> Result<()> {
     let hash_str = hash.to_string();
     let (file_dir, file_name) = get_object_hash_and_filename(&hash_str);
 
@@ -69,7 +61,8 @@ pub fn write_to_object_dir(object_bytes: &[u8], hash: &Hash) -> Result<()> {
 
     fs::create_dir_all(folder_path)?;
 
-    fs::write(&file_path, object_bytes)
+    let compressed = utils::zlib::compress(bytes).context("could not compress object data")?;
+    fs::write(&file_path, compressed)
         .context(format!("could not write to object file: {file_path:?}"))?;
 
     Ok(())
@@ -91,8 +84,9 @@ pub fn read_object(hash: Hash) -> Result<Object> {
     let path = Constants::objects_path().join(file_dir).join(file_name);
 
     let bytes = fs::read(path).context("could not read file")?;
+    let decompressed = utils::zlib::decompress(&bytes).context("could not decompress bytes")?;
 
-    Object::from_bytes(&bytes).context("could not create object from file bytes")
+    Object::from_bytes(&decompressed).context("could not create object from file bytes")
 }
 
 /// Converts the files in the given paths to their `ExtendedObject` representation.

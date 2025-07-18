@@ -4,10 +4,11 @@ pub struct Constants;
 
 impl Constants {
     pub const REPOSITORY_FOLDER_NAME: &str = ".git";
-    pub const OBJECTS_FOLDER_NAME: &str = "objects-test";
+    pub const OBJECTS_FOLDER_NAME: &str = "objects";
     pub const REFS_FOLDER_NAME: &str = "refs";
     pub const HEADS_FOLDER_NAME: &str = "heads";
-    pub const INDEX_NAME: &str = "index-test";
+    pub const INDEX_NAME: &str = "index";
+    pub const HEAD_HEADER: &str = "ref: ";
     pub const DEFAULT_HEAD: &str = "ref: refs/heads/main";
     pub const HEAD_NAME: &str = "HEAD";
     pub const INDEX_VERSION_NUMBER: u32 = 2;

@@ -1,4 +1,5 @@
 use std::ffi::OsString;
+use std::fmt::format;
 use std::io::{BufRead, Cursor, Read, Write};
 use std::os::unix::ffi::OsStringExt;
 use std::path::PathBuf;
@@ -8,6 +9,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use byteorder::WriteBytesExt;
 
 use crate::hashing::{HASH_BYTE_LEN, Hash};
+use crate::object::commit::TREE_STR;
 use crate::object::Object;
 
 const NULL_BYTE: u8 = b'\0';
@@ -51,14 +53,10 @@ pub fn as_bytes(entries: &[TreeEntry]) -> Result<Rc<[u8]>> {
 
     // Cursor for the whole tree
     let mut cursor = Cursor::new(Vec::new());
-    cursor
-        .write_all(Object::TREE_STRING.as_bytes())
-        .context("could not write tree object name")?;
-    cursor.write_u8(SPACE_BYTE)?;
-    cursor
-        .write_all(entries_bytes_len.to_string().as_bytes())
-        .context("could not write data length")?;
-    cursor.write_u8(NULL_BYTE)?;
+
+    let header = format!("{} {}\0", TREE_STR, entries_bytes_len);
+    cursor.write_all(header.as_bytes()).context("could not write tree header")?;
+
     cursor
         .write_all(entries_bytes.as_ref())
         .context("could not write tree entries")?;

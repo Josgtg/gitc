@@ -2,7 +2,7 @@ use std::rc::Rc;
 use std::str::{FromStr, Split};
 use std::time::{Duration, UNIX_EPOCH};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use time::UtcOffset;
 
 use crate::hashing::Hash;
@@ -26,15 +26,18 @@ pub fn as_bytes(
     commiter: &CommitUser,
     message: &str,
 ) -> Result<Rc<[u8]>> {
-    let mut file = format!("{} {}\n", TREE_STR, tree_hash);
+    let mut str = String::new();
+    str.push_str(&format!("{} {}\n", TREE_STR, tree_hash));
     for hash in parents.iter() {
-        file.push_str(&format!("{} {}\n", PARENT_STR, hash));
+        str.push_str(&format!("{} {}\n", PARENT_STR, hash));
     }
-    file.push_str(&format_commituser(author)?);
-    file.push_str(&format_commituser(commiter)?);
-    file.push_str(&format!("\n{}", message));
+    str.push_str(&format_commituser(author)?);
+    str.push_str(&format_commituser(commiter)?);
+    str.push_str(&format!("\n{}\n", message));
 
-    Ok(file.as_bytes().into())
+    let final_str = format!("{} {}\0{}", COMMIT_STR, str.len(), str); // Adding header
+
+    Ok(final_str.as_bytes().into())
 }
 
 fn format_commituser(user: &CommitUser) -> Result<String> {
