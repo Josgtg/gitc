@@ -1,3 +1,4 @@
+use std::io::{BufRead, Cursor};
 use std::rc::Rc;
 use std::str::{FromStr, Split};
 use std::time::{Duration, UNIX_EPOCH};
@@ -9,6 +10,9 @@ use crate::hashing::Hash;
 use crate::object::Object;
 
 use super::*;
+
+const SPACE_BYTE: u8 = b' ';
+const NULL_BYTE: u8 = b'\0';
 
 /// Returns the commit as the bytes of a string with the following format:
 ///
@@ -26,16 +30,16 @@ pub fn as_bytes(
     commiter: &CommitUser,
     message: &str,
 ) -> Result<Rc<[u8]>> {
-    let mut str = String::new();
-    str.push_str(&format!("{} {}\n", TREE_STR, tree_hash));
+    let mut commit_str = String::new();
+    commit_str.push_str(&format!("{} {}\n", TREE_STR, tree_hash));
     for hash in parents.iter() {
-        str.push_str(&format!("{} {}\n", PARENT_STR, hash));
+        commit_str.push_str(&format!("{} {}\n", PARENT_STR, hash));
     }
-    str.push_str(&format_commituser(author)?);
-    str.push_str(&format_commituser(commiter)?);
-    str.push_str(&format!("\n{}\n", message));
+    commit_str.push_str(&format_commituser(author)?);
+    commit_str.push_str(&format_commituser(commiter)?);
+    commit_str.push_str(&format!("\n{}\n", message));
 
-    let final_str = format!("{} {}\0{}", COMMIT_STR, str.len(), str); // Adding header
+    let final_str = format!("{} {}\0{}", Object::COMMIT_STRING, commit_str.len(), commit_str); // Adding header
 
     Ok(final_str.as_bytes().into())
 }
@@ -60,8 +64,30 @@ fn format_commituser(user: &CommitUser) -> Result<String> {
 /// This function will fail if the bytes do not conform to the expected format, or if any of the
 /// parsing operations fail.
 pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
+    // This does not check a valid length for the moment
+    let mut cursor = Cursor::new(bytes);
+
+    let mut header_buf = Vec::new();
+    cursor.read_until(SPACE_BYTE, &mut header_buf).context("could not read tree header")?;
+    if header_buf.pop() != Some(SPACE_BYTE) {
+        bail!("expected space byte after header");
+    }
+    if String::from_utf8_lossy(&header_buf) != Object::COMMIT_STRING {
+        bail!("file is not a commit string")
+    }
+    
+    let mut length_buf = Vec::new();
+    cursor.read_until(NULL_BYTE, &mut length_buf).context("could not read length")?;
+    if length_buf.pop() != Some(NULL_BYTE) {
+        bail!("expected null byte after tree length")
+    }
+    let length: usize = String::from_utf8_lossy(&length_buf).parse().context("length was invalid")?;
+
+    let last_position = cursor.position() as usize;
+    let remaining = &cursor.into_inner()[last_position..];
+
     let commit_str =
-        std::str::from_utf8(bytes).context("could not form a string from the given bytes")?;
+        std::str::from_utf8(remaining).context("could not form a string from the given bytes")?;
     let mut lines = commit_str.lines();
 
     let mut splitted: Split<_>;
@@ -285,7 +311,7 @@ mod tests {
         );
 
         let bytes = result.unwrap();
-        let commit_str = std::str::from_utf8(&bytes).unwrap();
+        let commit_str = std::str::from_utf8(&bytes).unwrap().split('\0').into_iter().skip(1).collect::<String>();
         let mut commit_lines = commit_str.lines();
 
         assert_eq!(
@@ -341,7 +367,7 @@ mod tests {
         let result = as_bytes(&tree_hash, &[], &author, &committer, TEST_MESSAGE);
 
         let bytes = result.unwrap();
-        let commit_str = std::str::from_utf8(&bytes).unwrap();
+        let commit_str = std::str::from_utf8(&bytes).unwrap().split('\0').into_iter().skip(1).collect::<String>();
         let mut commit_lines = commit_str.lines();
 
         assert_eq!(
@@ -373,7 +399,7 @@ mod tests {
 
     #[test]
     fn test_from_bytes_with_parent() {
-        let commit_data = format!(
+        let data = format!(
             "tree {}\nparent {}\nauthor {} <{}> {} {}\ncommitter {} <{}> {} {}\n\n{}",
             TEST_TREE_HASH,
             TEST_PARENT_HASH,
@@ -387,6 +413,7 @@ mod tests {
             TEST_TIMEZONE_OFFSET_STR,
             TEST_MESSAGE
         );
+        let commit_data = format!("commit {}\0{}", data.len(), data);
 
         let result = from_bytes(commit_data.as_bytes());
 
@@ -416,7 +443,7 @@ mod tests {
 
     #[test]
     fn test_from_bytes_without_parent() {
-        let commit_data = format!(
+        let data = format!(
             "tree {}\nauthor {} <{}> {} {}\ncommitter {} <{}> {} {}\n\n{}",
             TEST_TREE_HASH,
             TEST_AUTHOR_NAME,
@@ -429,6 +456,7 @@ mod tests {
             TEST_TIMEZONE_UTC_STR,
             TEST_MESSAGE
         );
+        let commit_data = format!("commit {}\0{}", data.len(), data);
 
         let result = from_bytes(commit_data.as_bytes());
 
@@ -636,7 +664,7 @@ mod tests {
     #[test]
     fn test_from_bytes_empty_message() {
         let commit_data = format!(
-            "tree {}\nauthor {} <{}> {} {}\ncommitter {} <{}> {} {}\n\n",
+            "commit 58\0tree {}\nauthor {} <{}> {} {}\ncommitter {} <{}> {} {}\n\n",
             TEST_TREE_HASH,
             TEST_AUTHOR_NAME,
             TEST_AUTHOR_EMAIL,
@@ -661,7 +689,7 @@ mod tests {
     fn test_from_bytes_multiline_message() {
         let og_message = "This is a multiline\ncommit message\nwith multiple lines!";
         let commit_data = format!(
-            "tree {}\nauthor {} <{}> {} {}\ncommitter {} <{}> {} {}\n\n{}",
+            "commit 60\0tree {}\nauthor {} <{}> {} {}\ncommitter {} <{}> {} {}\n\n{}",
             TEST_TREE_HASH,
             TEST_AUTHOR_NAME,
             TEST_AUTHOR_EMAIL,

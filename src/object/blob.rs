@@ -22,22 +22,9 @@ pub struct BlobExt {
 ///
 /// This function will fail if any write operation to a `std::io::Cursor` returns an error.
 pub fn as_bytes(data: &[u8]) -> Result<Rc<[u8]>> {
-    // Encoding to this format: blob 4\0abcd
-    let mut cursor = Cursor::new(Vec::new());
-
-    cursor
-        .write_all(Object::BLOB_STRING.as_bytes())
-        .context("could not write object type")?;
-    cursor.write_u8(b' ')?;
-    cursor
-        .write_all(data.len().to_string().as_bytes())
-        .context("could not write object data length")?;
-    cursor.write_u8(b'\0')?;
-    cursor
-        .write_all(data)
-        .context("could not write object data")?;
-
-    Ok(cursor.into_inner().into())
+    let mut header = format!("{} {}\0", Object::BLOB_STRING, data.len()).as_bytes().to_vec();
+    header.extend(data);
+    Ok(header.into())
 }
 
 // Reads a byte slice, asuming it represents a valid object file.

@@ -7,7 +7,6 @@ pub use commit_user::*;
 use time::format_description::BorrowedFormatItem;
 use time::macros::format_description;
 
-pub const COMMIT_STR: &str = "commit";
 pub const TREE_STR: &str = "tree";
 pub const PARENT_STR: &str = "parent";
 pub const AUTHOR_STR: &str = "author";
