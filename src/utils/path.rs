@@ -1,4 +1,5 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::ffi::{OsStr, OsString};
 
 /// Removes the first component from a path.
 ///
@@ -21,3 +22,45 @@ pub fn strip_root(path: PathBuf) -> (Option<PathBuf>, PathBuf) {
     let root = components.next().map(|c| PathBuf::from(c.as_os_str()));
     (root, components.as_path().to_owned())
 }
+
+
+/// Returns `path` relative to `base`.
+///
+/// # Errors
+///
+/// This function will return `None` if `base` was not a prefix of `path`.
+pub fn relative_path(path: &Path, base: &Path) -> Option<PathBuf> {
+    path.strip_prefix(base).map(PathBuf::from).ok()
+}
+
+/// Returns the path divided by forward slashes.
+pub fn format_path(path: &Path) -> OsString {
+    let mut formatted = OsString::new();
+    let mut prev: &OsStr = OsStr::new("");
+    for (i, p) in path.iter().enumerate() {
+        if i != 0 && prev != "/" {
+            // doing this to avoid placing a forward slash at the end or when the path before is a
+            // forward slash
+            formatted.push("/");
+        }
+        formatted.push(p);
+        prev = p;
+    }
+    formatted
+}
+
+/// Returns the path without useless characters.
+///
+/// If the `absolute` flag is set, it will not strip the forward slash from the path.
+pub fn clean_path(path: PathBuf, absolute: bool) -> PathBuf {
+    let cleaned: PathBuf = if path.starts_with("./") {
+        path.strip_prefix("./").unwrap().into()
+    } else if path.starts_with("/") && !absolute {
+        path.strip_prefix("/").unwrap().into()
+    } else {
+        path
+    };
+
+    cleaned
+}
+

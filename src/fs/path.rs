@@ -20,46 +20,6 @@ pub fn get_current_branch_path() -> Result<PathBuf> {
     Ok(PathBuf::from(OsString::from_vec(bytes)))
 }
 
-/// Returns `path` relative to `base`.
-///
-/// # Errors
-///
-/// This function will return `None` if `base` was not a prefix of `path`.
-pub fn relative_path(path: &Path, base: &Path) -> Option<PathBuf> {
-    path.strip_prefix(base).map(PathBuf::from).ok()
-}
-
-/// Returns the path divided by forward slashes.
-pub fn format_path(path: &Path) -> OsString {
-    let mut formatted = OsString::new();
-    let mut prev: &OsStr = OsStr::new("");
-    for (i, p) in path.iter().enumerate() {
-        if i != 0 && prev != "/" {
-            // doing this to avoid placing a forward slash at the end or when the path before is a
-            // forward slash
-            formatted.push("/");
-        }
-        formatted.push(p);
-        prev = p;
-    }
-    formatted
-}
-
-/// Returns the path without useless characters.
-///
-/// If the `absolute` flag is set, it will not strip the forward slash from the path.
-pub fn clean_path(path: PathBuf, absolute: bool) -> PathBuf {
-    let cleaned: PathBuf = if path.starts_with("./") {
-        path.strip_prefix("./").unwrap().into()
-    } else if path.starts_with("/") && !absolute {
-        path.strip_prefix("/").unwrap().into()
-    } else {
-        path
-    };
-
-    cleaned
-}
-
 /// Returns all the paths of the files and subdirectories inside of `dir`.
 ///
 /// # Errors

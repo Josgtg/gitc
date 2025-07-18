@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use crate::Constants;
 
-use crate::fs::path::{clean_path, relative_path};
+use crate::utils::path::{clean_path, relative_path};
 
 /// Reads a .gitignore file inside of `path`, returning a HashSet including all the files listed (read by line).
 ///

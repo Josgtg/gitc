@@ -12,7 +12,7 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
 use crate::Constants;
 use crate::byteable::Byteable;
-use crate::fs::path::relative_path;
+use crate::utils::path::relative_path;
 use crate::hashing::Hash;
 
 use super::FileStage;
