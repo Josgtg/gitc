@@ -54,7 +54,7 @@ pub fn read_not_ignored_paths(path: &Path) -> Result<Vec<PathBuf>> {
 mod tests {
     use std::{env, path::PathBuf};
 
-    use crate::fs::path::{format_path, relative_path};
+    use crate::utils::path::{format_path, relative_path};
 
     #[test]
     pub fn relative_path_test() {
