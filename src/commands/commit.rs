@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use anyhow::{Context, Result};
 
 use crate::fs::index::read_index_file;
@@ -17,8 +19,7 @@ pub fn commit(message: &str) -> Result<String> {
         tree_builder.add_object(e.mode, e.path().to_owned(), e.object_hash());
     }
 
-    let tree = tree_builder.build();
-    let tree_hash = write_object(&tree).context("could not write tree object")?;
+    let tree = tree_builder.build_and_write().context("could not write tree object")?;
 
     // Getting the direct parent
     let current_branch =
@@ -26,16 +27,17 @@ pub fn commit(message: &str) -> Result<String> {
     let mut parents = Vec::new();
     if current_branch.exists() {
         // If it does not exist then this is the first commit and there is no parents
-        let parent_hash =
+        let parent_hash_bytes =
             std::fs::read(&current_branch).context("could not read current branches reference")?;
+        let parent_hash_str = String::from_utf8_lossy(&parent_hash_bytes);
         parents.push(
-            Hash::try_from(parent_hash)
+            Hash::from_str(&parent_hash_str)
                 .context("could not get hash from contents on current branch")?,
         );
     }
 
     let commit = Object::Commit {
-        tree: tree_hash,
+        tree,
         parents: parents.into(),
         author: CommitUser::default(),
         committer: CommitUser::default(),

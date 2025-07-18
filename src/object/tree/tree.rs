@@ -4,10 +4,12 @@ use std::io::{BufRead, Cursor, Read, Write};
 use std::os::unix::ffi::OsStringExt;
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::slice::IterMut;
 
 use anyhow::{anyhow, bail, Context, Result};
 use byteorder::WriteBytesExt;
 
+use crate::fs::object::write_object;
 use crate::hashing::{Hash, HASH_BYTE_LEN};
 use crate::object::commit::TREE_STR;
 use crate::object::Object;
@@ -21,6 +23,13 @@ pub struct TreeEntry {
     pub mode: u32,
     pub path: PathBuf,
     pub hash: Hash,
+}
+
+/// Represents a tree with a bit extra information (the subtrees linked to it)
+pub struct TreeExt {
+    pub path: PathBuf,
+    pub tree: Object,
+    pub subtrees: Vec<TreeExt>,
 }
 
 /// Will encode this tree object to a binary format, following the next layout:
@@ -37,7 +46,7 @@ pub fn as_bytes(entries: &[TreeEntry]) -> Result<Rc<[u8]>> {
     let mut entries_bytes: Vec<u8> = Vec::new();
     for e in entries {
         entries_bytes.extend(
-            format!("{} {}\0", e.mode, e.path.to_string_lossy()).as_bytes(),
+            format!("{:o} {}\0", e.mode, e.path.to_string_lossy()).as_bytes(),
         );
         entries_bytes.extend(e.hash.as_ref());
     }

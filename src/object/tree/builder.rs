@@ -1,24 +1,31 @@
 use std::collections::HashMap;
+use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 
+use anyhow::{bail, Context, Result};
+
+use crate::fs::object::write_object;
 use crate::hashing::Hash;
 use crate::object::Object;
 use crate::utils;
 
+use super::tree::TreeExt;
 use super::TreeEntry;
+
+struct SubtreeEntry {}
 
 pub struct TreeBuilder {
     entries: Vec<TreeEntry>,
     /// Every entry on the hashmap represents a subtree, where the path is relative to it's parent
     /// tree's path.
-    subtrees: Option<HashMap<PathBuf, TreeBuilder>>,
+    subtrees: HashMap<PathBuf, TreeBuilder>,
 }
 
 impl TreeBuilder {
     pub fn new() -> Self {
         Self {
             entries: Vec::new(),
-            subtrees: None,
+            subtrees: HashMap::new(),
         }
     }
 
@@ -32,11 +39,7 @@ impl TreeBuilder {
         }
 
         if path.components().count() > 1 {
-            if self.subtrees.is_none() {
-                self.subtrees = Some(HashMap::new());
-            }
-
-            let subtrees = self.subtrees.as_mut().unwrap();
+            // If there is more than one component, it means there is a subdirectory in the path
 
             // Stripping the root from a path, this is done so the subtrees don't store the
             // directory they are supposed to represent.
@@ -45,42 +48,68 @@ impl TreeBuilder {
 
             // Updating the corresponding subtree or adding a new one if a subtree for this path
             // does not exist.
-            let tree = subtrees.get_mut(&root);
+            let tree = self.subtrees.get_mut(&root);
             if let Some(t) = tree {
                 t.add_object(mode, stripped_path, hash);
             } else {
                 let mut tree = TreeBuilder::new();
                 tree.add_object(mode, stripped_path, hash);
-                subtrees.insert(root, tree);
+                self.subtrees.insert(root.clone(), tree);
             }
         } else {
             self.entries.push(TreeEntry { mode, path, hash });
         }
     }
 
-    /// Returns the entries for this tree builder, without turning it into a tree object.
-    fn build_entries(self) -> Vec<TreeEntry> {
-        let mut entries = self.entries;
-        if let Some(subtrees) = self.subtrees {
-            let mut subentries;
-            for (path, tree) in subtrees {
-                // Adds subdirectory to the start of every tree entry's path inside of this subtree
-                subentries = tree.build_entries();
-                for se in subentries.iter_mut() {
-                    se.path = path.join(std::mem::take(&mut se.path));
-                }
-                entries.extend(subentries);
-            }
+    /// Builds the tree and subsequent subtrees, assgining `path` to this tree.
+    /// 
+    /// If `write` is set, the hash would be obtained by writing the object to the object dir, if
+    /// it's not, then the hash will just be computed from scratch.
+    fn build_as_subtree(mut self, subdir: PathBuf, write: bool) -> Result<TreeExt> {
+        let mut subtrees: Vec<TreeExt> = Vec::new();
+        for (p, t) in self.subtrees.into_iter() {
+            subtrees.push(
+                t.build_as_subtree(p, write).context("could not build tree")?
+            );
         }
-        entries
+
+        // Updating undefined hashes
+        let mut hash: Hash;
+        for subt in subtrees.iter() {
+            hash = if write {
+                write_object(&subt.tree).context("could not write subtree")?
+            } else {
+                subt.tree.hash().context("could not hash tree")?
+            };
+            // Adding entry for this subtree in the main tree
+            self.entries.push(TreeEntry {
+                // Mode should always be a directory's mode anyways so it can be hardcoded
+                mode: subt.path.metadata().context("could not get directory metadata")?.mode(),
+                path: subt.path.clone(),
+                hash,
+            });
+        }
+
+        Ok(TreeExt {
+            path: subdir,
+            tree: Object::Tree {
+                entries: self.entries,
+            },
+            subtrees,
+        })
     }
 
     /// Gets all the entries from this tree builder, consuming it and returning a tree object
     /// containing said entries.
-    pub fn build(self) -> Object {
-        Object::Tree {
-            entries: self.build_entries(),
-        }
+    pub fn build(mut self) -> Result<TreeExt> {
+        self.build_as_subtree(PathBuf::new(), false) // Since it's the root one, the path remains empty
+    }
+
+    /// Gets all the entries from this tree builder, consuming it. It then buils a tree object and
+    /// subtrees and writes them all to the object directory, returning the hash of the built tree.
+    pub fn build_and_write(mut self) -> Result<Hash> {
+        let treext = self.build_as_subtree(PathBuf::new(), true).context("could not write subtrees")?;
+        write_object(&treext.tree)
     }
 }
 
