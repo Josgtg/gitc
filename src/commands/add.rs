@@ -66,7 +66,7 @@ pub fn add(files: &[OsString]) -> Result<String> {
             .as_bytes()
             .context(format!("could not encode object for file: {:?}", path))?;
 
-        hash = Hash::new(bytes.as_ref());
+        hash = Hash::compute(bytes.as_ref());
 
         if paths_already_in_index.contains(&path) {
             // file already in index

@@ -1,19 +1,20 @@
 use std::ffi::OsStr;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 
 use crate::Constants;
 use crate::byteable::Byteable;
 use crate::hashing::Hash;
-use crate::object::{BlobExt, Object};
+use crate::object::Object;
+use crate::object::blob::BlobExt;
 use crate::utils::zlib;
 
 /// Given an object, gets it's serialized representation and hash, and writes it to the object
 /// directory.
 ///
-/// If the encoded object and their hash has already been processed, it's better to use the
+/// If the encoded object and their hash has already been computed, it's better to use the
 /// `write_to_object_dir` function since it does not calculate them from scratch.
 ///
 /// # Errors
@@ -21,7 +22,7 @@ use crate::utils::zlib;
 /// This function will fail if the object could not be encoded or the data could not be written.
 pub fn write_object(object: &Object) -> Result<Hash> {
     let bytes = object.as_bytes().context("could not encode object")?;
-    let hash = Hash::new(bytes.as_ref());
+    let hash = Hash::compute(bytes.as_ref());
 
     write_to_object_dir(&bytes, &hash).context("could not write to object directory")?;
 
@@ -133,7 +134,7 @@ pub fn as_blob_objects(paths: Vec<PathBuf>) -> Result<Vec<BlobExt>> {
 /// # Errors
 ///
 /// This function will fail if the file could not be read.
-pub fn as_blob_object(path: PathBuf) -> Result<BlobExt> { 
+pub fn as_blob_object(path: PathBuf) -> Result<BlobExt> {
     let bytes = fs::read(&path).context(format!("could not read file: {:?}", &path))?;
     Ok(BlobExt {
         blob: Object::Blob { data: bytes.into() },

@@ -1,10 +1,8 @@
 #[allow(clippy::module_inception)]
 mod object;
 
-mod blob;
-mod commit;
-mod tree;
+pub mod blob;
+pub mod commit;
+pub mod tree;
 
-pub use blob::BlobExt;
 pub use object::Object;
-pub use tree::{TreeBuilder, TreeEntry};

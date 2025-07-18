@@ -100,4 +100,3 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
         data: data_buf.into(),
     })
 }
-

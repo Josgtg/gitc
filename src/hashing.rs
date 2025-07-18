@@ -10,10 +10,16 @@ pub const HASH_STR_LEN: usize = 40;
 
 impl Hash {
     /// Returns the SHA1 hash for the data passed
-    pub fn new(value: &[u8]) -> Self {
+    pub fn compute(value: &[u8]) -> Self {
         let mut hasher = Sha1::new();
         hasher.update(value);
         Hash(Rc::new(hasher.finalize().into()))
+    }
+}
+
+impl AsRef<[u8]> for Hash {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
     }
 }
 
@@ -35,13 +41,12 @@ impl From<Hash> for [u8; 20] {
     }
 }
 
-impl FromStr for Hash {
-    type Err = anyhow::Error;
+impl TryFrom<Vec<u8>> for Hash {
+    type Error = anyhow::Error;
 
-    fn from_str(s: &str) -> Result<Self> {
-        let hash = hex::decode(s)?;
+    fn try_from(vec: Vec<u8>) -> Result<Self> {
         let mut bytes = [0; 20];
-        for (i, b) in hash.into_iter().enumerate() {
+        for (i, b) in vec.into_iter().enumerate() {
             if i >= 20 {
                 bail!("produced hash had exceeded 20 bytes")
             }
@@ -51,9 +56,12 @@ impl FromStr for Hash {
     }
 }
 
-impl AsRef<[u8]> for Hash {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
+impl FromStr for Hash {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        let hash = hex::decode(s)?;
+        Hash::try_from(hash)
     }
 }
 
@@ -73,12 +81,12 @@ mod tests {
     #[test]
     pub fn test_hashing() {
         let data = b"this is binary data";
-        let data_hash = Hash::new(data);
+        let data_hash = Hash::compute(data);
         let data2 = b"this is binary data";
-        let data2_hash = Hash::new(data2);
+        let data2_hash = Hash::compute(data2);
         assert_eq!(data_hash, data2_hash);
         let data3 = b"This is binary data";
-        let data3_hash = Hash::new(data3);
+        let data3_hash = Hash::compute(data3);
         assert_ne!(data_hash, data3_hash);
     }
 

@@ -31,6 +31,20 @@ impl Object {
     pub const BLOB_STRING: &str = "blob";
     pub const TREE_STRING: &str = "tree";
     pub const COMMIT_STRING: &str = "commit";
+
+    /// Turns this object into bytes and calls `Hash::new` from said bytes.
+    ///
+    /// If you have already computed the serialized version of this object, it is better to just
+    /// use `Hash::new` directly.
+    ///
+    /// # Errors
+    ///
+    /// This function will fail if there was not possible to serialize this object.
+    pub fn hash(&self) -> Result<Hash> {
+        Ok(Hash::compute(
+            &self.as_bytes().context("could not serialize object")?,
+        ))
+    }
 }
 
 impl std::fmt::Display for Object {

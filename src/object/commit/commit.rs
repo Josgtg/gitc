@@ -1,62 +1,14 @@
-use std::fmt::Display;
 use std::rc::Rc;
 use std::str::{FromStr, Split};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, UNIX_EPOCH};
 
 use anyhow::{Context, Result, bail};
 use time::UtcOffset;
-use time::format_description::BorrowedFormatItem;
-use time::macros::format_description;
 
 use crate::hashing::Hash;
+use crate::object::Object;
 
-use super::Object;
-
-// TODO: Add support for multiple parents and try to extract the logic to reading from the cursor
-// to a function to reduce the size.
-
-pub const TREE_STR: &str = "tree";
-pub const PARENT_STR: &str = "parent";
-pub const AUTHOR_STR: &str = "author";
-pub const COMMITTER_STR: &str = "committer";
-const TIMEZONE_FORMAT: &[BorrowedFormatItem] =
-    format_description!("[offset_hour sign:mandatory][offset_minute]");
-
-#[derive(Debug)]
-pub enum CommitUserKind {
-    Author,
-    Commiter,
-}
-
-impl FromStr for CommitUserKind {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        match s {
-            AUTHOR_STR => Ok(CommitUserKind::Author),
-            COMMITTER_STR => Ok(CommitUserKind::Commiter),
-            _ => bail!("invalid commit user kind: {}", s),
-        }
-    }
-}
-
-impl Display for CommitUserKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            CommitUserKind::Author => AUTHOR_STR,
-            CommitUserKind::Commiter => COMMITTER_STR,
-        })
-    }
-}
-
-#[derive(Debug)]
-pub struct CommitUser {
-    kind: CommitUserKind,
-    /// Generally name and email
-    identifier: String,
-    timestamp: SystemTime,
-    timezone: UtcOffset,
-}
+use super::*;
 
 /// Returns the commit as the bytes of a string with the following format:
 ///

@@ -1,50 +1,24 @@
 use std::ffi::OsString;
 use std::io::{BufRead, Cursor, Read, Write};
 use std::os::unix::ffi::OsStringExt;
-use std::path::Path;
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use anyhow::{Context, Result, anyhow, bail};
 use byteorder::WriteBytesExt;
 
 use crate::hashing::{HASH_BYTE_LEN, Hash};
-
-use super::Object;
+use crate::object::Object;
 
 const NULL_BYTE: u8 = b'\0';
 const SPACE_BYTE: u8 = b' ';
 
+/// Struct that represents a single tree entry in a tree object.
 #[derive(Debug)]
 pub struct TreeEntry {
-    mode: u32,
-    path: OsString,
-    hash: Hash,
-}
-
-pub struct TreeBuilder {
-    entries: Vec<TreeEntry>,
-}
-
-impl TreeBuilder {
-    pub fn new() -> Self {
-        Self {
-            entries: Vec::new(),
-        }
-    }
-
-    pub fn add_object(&mut self, mode: u32, path: &Path, hash: &Hash) {
-        self.entries.push(TreeEntry {
-            mode,
-            path: path.into(),
-            hash: hash.clone(),
-        })
-    }
-
-    pub fn build(self) -> Object {
-        Object::Tree {
-            entries: self.entries,
-        }
-    }
+    pub mode: u32,
+    pub path: PathBuf,
+    pub hash: Hash,
 }
 
 /// Will encode this tree object to a binary format, following the next layout:
@@ -65,7 +39,7 @@ pub fn as_bytes(entries: &[TreeEntry]) -> Result<Rc<[u8]>> {
             .context("could not write tree entry mode")?;
         entries_cursor.write_u8(SPACE_BYTE)?;
         entries_cursor
-            .write_all(e.path.as_encoded_bytes())
+            .write_all(e.path.as_os_str().as_encoded_bytes())
             .context("could not write tree entry path")?;
         entries_cursor.write_u8(NULL_BYTE)?;
         entries_cursor
@@ -165,7 +139,7 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
             mode: String::from_utf8_lossy(&mode_buf)
                 .parse::<u32>()
                 .context("could not get mode from bytes read (could not parse to a number)")?,
-            path: OsString::from_vec(path_buf),
+            path: PathBuf::from(OsString::from_vec(path_buf)),
             hash: Hash::from(hash_buf),
         });
     }
@@ -206,7 +180,7 @@ mod tests {
     fn create_test_entry(mode: u32, path: &str, hash: &str) -> TreeEntry {
         TreeEntry {
             mode,
-            path: OsString::from(path),
+            path: PathBuf::from(path),
             hash: Hash::from_str(hash).unwrap(),
         }
     }

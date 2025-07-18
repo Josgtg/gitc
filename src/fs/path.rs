@@ -1,10 +1,24 @@
 use std::ffi::OsStr;
 use std::ffi::OsString;
+use std::fs;
+use std::os::unix::ffi::OsStringExt;
 use std::path::Path;
 use std::path::PathBuf;
 
 use anyhow::Context;
 use anyhow::Result;
+
+use crate::Constants;
+
+/// Reads the path stored inside the HEAD file.
+///
+/// # Errors
+///
+/// This function will fail if the HEAD file could not be opened or read from.
+pub fn get_current_branch_path() -> Result<PathBuf> {
+    let bytes = fs::read(Constants::head_path()).context("could not read from HEAD file")?;
+    Ok(PathBuf::from(OsString::from_vec(bytes)))
+}
 
 /// Returns `path` relative to `base`.
 ///
