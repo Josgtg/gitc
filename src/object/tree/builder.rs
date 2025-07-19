@@ -83,7 +83,7 @@ impl TreeBuilder {
         // Updating undefined hashes
         let mut hash: Hash;
         let mut mode: u32;
-        for subt in subtrees.iter() {
+        for subt in subtrees {
             hash = if write {
                 write_object(&subt.tree).context("could not write subtree")?
             } else {
@@ -92,13 +92,13 @@ impl TreeBuilder {
             mode = if let Ok(m) = subt.path.metadata() {
                 m.mode()
             } else {
+                // Mode here should always be a directory's mode anyways so it can be hardcoded
                 DEFAULT_DIR_MODE
             };
             // Adding entry for this subtree in the main tree
             self.entries.push(TreeEntry {
-                // Mode should always be a directory's mode anyways so it can be hardcoded
                 mode: as_octal(mode),
-                path: subt.path.clone(),
+                path: subt.path,
                 hash,
             });
         }
@@ -113,13 +113,28 @@ impl TreeBuilder {
 
     /// Gets all the entries from this tree builder, consuming it and returning a tree object
     /// containing said entries.
+    ///
+    /// If you want to use this object to immediately write it to the objects directory, use the
+    /// `build_and_write` method instead.
+    ///
+    /// # Errors
+    ///
+    /// This function can fail if a hash for an entry could not be computed.
     #[allow(unused)]
     pub fn build(self) -> Result<TreeExt> {
         self.build_as_subtree(PathBuf::new(), false) // Since it's the root one, the path remains empty
     }
 
-    /// Gets all the entries from this tree builder, consuming it. It then buils a tree object and
-    /// subtrees and writes them all to the object directory, returning the hash of the built tree.
+    /// Gets all the entries from this tree builder, consuming it and building a tree form the
+    /// entries, immediately writing it to the objects directory.
+    ///
+    /// The important thing here is that this avoids computing a hash from scratch for the subtrees
+    /// since it is obtained when writing the object file.
+    ///
+    /// # Errors
+    ///
+    /// This function can fail if it was not possible to write the object or build it in the first
+    /// place.
     pub fn build_and_write(self) -> Result<Hash> {
         let treext = self
             .build_as_subtree(PathBuf::new(), true)
