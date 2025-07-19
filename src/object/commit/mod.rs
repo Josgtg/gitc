@@ -1,6 +1,6 @@
-mod commit_user;
 #[allow(clippy::module_inception)]
 mod commit;
+mod commit_user;
 
 pub use commit::*;
 pub use commit_user::*;

@@ -159,7 +159,7 @@ pub fn display(entries: &[TreeEntry]) -> String {
         s.push_str(&e.to_string());
         s.push('\n');
     }
-    s.pop();  // removing trailing newline
+    s.pop(); // removing trailing newline
     s
 }
 

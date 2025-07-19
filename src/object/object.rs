@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::io::{BufRead, Cursor};
 use std::rc::Rc;
 
@@ -88,7 +88,9 @@ impl Byteable for Object {
         Cursor::new(bytes)
             .read_until(b' ', &mut kind_buffer)
             .context("could not read object header")?;
-        kind_buffer.pop().context("expected space after object type")?;
+        kind_buffer
+            .pop()
+            .context("expected space after object type")?;
 
         let kind = String::from_utf8_lossy(&kind_buffer);
         match kind.as_ref() {

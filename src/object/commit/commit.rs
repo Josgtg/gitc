@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::str::{FromStr, Split};
 use std::time::{Duration, UNIX_EPOCH};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use time::UtcOffset;
 
 use crate::hashing::Hash;
@@ -70,7 +70,9 @@ fn format_commituser(user: &CommitUser) -> Result<String> {
             .duration_since(UNIX_EPOCH)
             .context("timestamp was invalid")?
             .as_secs(),
-        user.timezone.format(TIMEZONE_FORMAT).expect("timezone formatting should never fail"),
+        user.timezone
+            .format(TIMEZONE_FORMAT)
+            .expect("timezone formatting should never fail"),
     ))
 }
 
@@ -248,7 +250,7 @@ pub fn display(
 ) -> String {
     let mut s = format_data(tree, parents, author, commiter, message)
         .unwrap_or(String::from("commit could not be formatted"));
-    s.pop();  // removing trailing newline
+    s.pop(); // removing trailing newline
     s
 }
 

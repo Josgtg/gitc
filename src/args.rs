@@ -55,7 +55,7 @@ pub enum Command {
     CatFile {
         /// Hash of the file to show
         hash: String,
-    }
+    },
 }
 
 #[derive(Subcommand, Debug)]

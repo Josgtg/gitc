@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
-use crate::hashing::Hash;
 use crate::fs;
+use crate::hashing::Hash;
 
 use anyhow::{Context, Result};
 

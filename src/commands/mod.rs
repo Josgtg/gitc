@@ -1,11 +1,11 @@
 mod add;
+mod cat_file;
 mod checkout;
 mod commit;
 mod init;
 mod ls_files;
 mod reset;
 mod status;
-mod cat_file;
 
 use std::fs;
 
