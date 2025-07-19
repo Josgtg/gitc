@@ -33,6 +33,7 @@ pub fn relative_path(path: &Path, base: &Path) -> Option<PathBuf> {
 }
 
 /// Returns the path divided by forward slashes.
+#[allow(unused)]
 pub fn format_path(path: &Path) -> OsString {
     let mut formatted = OsString::new();
     let mut prev: &OsStr = OsStr::new("");

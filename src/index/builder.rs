@@ -25,6 +25,7 @@ impl IndexBuilder {
         self.index
     }
 
+    #[allow(unused)]
     pub fn set_version(&mut self, version: u32) {
         self.index.version_number = version;
     }
@@ -37,6 +38,7 @@ impl IndexBuilder {
         Some(self.index.entries.swap_remove(position?))
     }
 
+    #[allow(unused)]
     pub fn add_extension_entry(&mut self, entry: ExtensionEntry) {
         self.index.extensions.push(entry)
     }

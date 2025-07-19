@@ -19,6 +19,7 @@ struct FileStatus {
     tracked: bool,
 }
 
+#[allow(unused)]
 enum Status {
     New,
     Modified,

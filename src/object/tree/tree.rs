@@ -1,17 +1,14 @@
 use std::ffi::OsString;
-use std::fmt::{format, Display};
-use std::io::{BufRead, Cursor, Read, Write};
+use std::fmt::Display;
+pub use std::io::{BufRead, Cursor, Read};
 use std::os::unix::ffi::OsStringExt;
 use std::path::PathBuf;
 use std::rc::Rc;
 
 use anyhow::{Context, Result, anyhow, bail};
-use byteorder::WriteBytesExt;
 
-use crate::fs::object::write_object;
 use crate::hashing::{HASH_BYTE_LEN, Hash};
 use crate::object::Object;
-use crate::object::commit::TREE_STR;
 
 const NULL_BYTE: u8 = b'\0';
 const SPACE_BYTE: u8 = b' ';

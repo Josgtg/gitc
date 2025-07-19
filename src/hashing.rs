@@ -6,6 +6,7 @@ use std::{fmt::Display, rc::Rc, str::FromStr};
 pub struct Hash(Rc<[u8; 20]>);
 
 pub const HASH_BYTE_LEN: usize = 20;
+#[allow(unused)]
 pub const HASH_STR_LEN: usize = 40;
 
 impl Hash {

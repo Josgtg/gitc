@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::os::unix::fs::MetadataExt;
 use std::path::PathBuf;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 
 use crate::fs::object::write_object;
 use crate::hashing::Hash;
@@ -113,13 +113,14 @@ impl TreeBuilder {
 
     /// Gets all the entries from this tree builder, consuming it and returning a tree object
     /// containing said entries.
-    pub fn build(mut self) -> Result<TreeExt> {
+    #[allow(unused)]
+    pub fn build(self) -> Result<TreeExt> {
         self.build_as_subtree(PathBuf::new(), false) // Since it's the root one, the path remains empty
     }
 
     /// Gets all the entries from this tree builder, consuming it. It then buils a tree object and
     /// subtrees and writes them all to the object directory, returning the hash of the built tree.
-    pub fn build_and_write(mut self) -> Result<Hash> {
+    pub fn build_and_write(self) -> Result<Hash> {
         let treext = self
             .build_as_subtree(PathBuf::new(), true)
             .context("could not write subtrees")?;

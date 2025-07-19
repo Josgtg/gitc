@@ -102,7 +102,8 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
     if length_buf.pop() != Some(NULL_BYTE) {
         bail!("expected null byte after tree length")
     }
-    let length: usize = String::from_utf8_lossy(&length_buf)
+    // Not storing length since with actual implementation is kinda hard to compare
+    let _: usize = String::from_utf8_lossy(&length_buf)
         .parse()
         .context("length was invalid")?;
 
@@ -214,6 +215,7 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
     timezone = *committer_vec
         .get(words - 1)
         .context("expected timezone when reading committer")?;
+
     let committer = CommitUser {
         kind: CommitUserKind::Author,
         identifier,

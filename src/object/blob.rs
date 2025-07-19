@@ -1,9 +1,8 @@
-use std::io::{BufRead, Cursor, Read, Write};
+use std::io::{BufRead, Cursor, Read};
 use std::path::PathBuf;
 use std::rc::Rc;
 
 use anyhow::{Context, Result, anyhow, bail};
-use byteorder::WriteBytesExt;
 
 use super::Object;
 
