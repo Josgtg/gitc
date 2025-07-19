@@ -1,10 +1,9 @@
 use std::ffi::OsString;
-use std::fmt::format;
+use std::fmt::{format, Display};
 use std::io::{BufRead, Cursor, Read, Write};
 use std::os::unix::ffi::OsStringExt;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::slice::IterMut;
 
 use anyhow::{Context, Result, anyhow, bail};
 use byteorder::WriteBytesExt;
@@ -20,16 +19,27 @@ const SPACE_BYTE: u8 = b' ';
 /// Struct that represents a single tree entry in a tree object.
 #[derive(Debug)]
 pub struct TreeEntry {
+    /// The mode is always stored as its octal representation
     pub mode: u32,
     pub path: PathBuf,
     pub hash: Hash,
+}
+
+impl Display for TreeEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "{}\t{}\t{}",
+            self.mode,
+            self.hash,
+            self.path.to_string_lossy(),
+        ))
+    }
 }
 
 /// Represents a tree with a bit extra information (the subtrees linked to it)
 pub struct TreeExt {
     pub path: PathBuf,
     pub tree: Object,
-    pub subtrees: Vec<TreeExt>,
 }
 
 /// Will encode this tree object to a binary format, following the next layout:
@@ -144,6 +154,16 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
     }
 
     Ok(Object::Tree { entries })
+}
+
+pub fn display(entries: &[TreeEntry]) -> String {
+    let mut s = String::new();
+    for e in entries {
+        s.push_str(&e.to_string());
+        s.push('\n');
+    }
+    s.pop();  // removing trailing newline
+    s
 }
 
 #[cfg(test)]

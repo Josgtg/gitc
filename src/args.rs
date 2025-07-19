@@ -51,6 +51,11 @@ pub enum Command {
         /// Reference or commit hash
         reference: String,
     },
+    /// Shows the object file with the specified hash
+    CatFile {
+        /// Hash of the file to show
+        hash: String,
+    }
 }
 
 #[derive(Subcommand, Debug)]

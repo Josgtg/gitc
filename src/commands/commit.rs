@@ -6,7 +6,7 @@ use crate::fs::index::read_index_file;
 use crate::fs::object::write_object;
 use crate::hashing::Hash;
 use crate::object::Object;
-use crate::object::commit::CommitUser;
+use crate::object::commit::{CommitUser, CommitUserKind};
 use crate::object::tree::TreeBuilder;
 
 #[allow(unused)]
@@ -41,8 +41,8 @@ pub fn commit(message: &str) -> Result<String> {
     let commit = Object::Commit {
         tree,
         parents: parents.into(),
-        author: CommitUser::default(),
-        committer: CommitUser::default(),
+        author: CommitUser::default(CommitUserKind::Author),
+        committer: CommitUser::default(CommitUserKind::Commiter),
         message: message.into(),
     };
 

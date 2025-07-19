@@ -90,8 +90,7 @@ impl IndexEntry {
             object_hash,
             flags: IndexEntry::default_flags(file_path.as_os_str().len()),
             path: relative_path(file_path, &Constants::repository_folder_path())
-                .unwrap_or(file_path.into())
-                .into(),
+                .unwrap_or(file_path.into()),
         })
     }
 

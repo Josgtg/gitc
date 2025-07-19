@@ -14,11 +14,11 @@ pub struct CommitUser {
     pub timezone: UtcOffset,
 }
 
-impl Default for CommitUser {
+impl CommitUser {
     /// Just for debugging from now
-    fn default() -> Self {
+    pub fn default(kind: CommitUserKind) -> Self {
         CommitUser {
-            kind: CommitUserKind::Author,
+            kind,
             identifier: "Josué Torres <josue.ger.torres.gar@gmail.com>".to_owned(),
             timestamp: SystemTime::now(),
             timezone: UtcOffset::UTC,

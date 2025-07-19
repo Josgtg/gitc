@@ -30,7 +30,7 @@ pub fn write_object(object: &Object) -> Result<Hash> {
 }
 
 /// Returns the directory in the first position and the filename in the second one.
-fn get_object_hash_and_filename(hash_str: &str) -> (&str, &str) {
+pub fn get_object_hash_and_filename(hash_str: &str) -> (&str, &str) {
     let file_dir = &hash_str[0..2];
     let file_name = &hash_str[2..];
     (file_dir, file_name)

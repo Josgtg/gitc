@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::str::{FromStr, Split};
 use std::time::{Duration, UNIX_EPOCH};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use time::UtcOffset;
 
 use crate::hashing::Hash;
@@ -30,14 +30,8 @@ pub fn as_bytes(
     commiter: &CommitUser,
     message: &str,
 ) -> Result<Rc<[u8]>> {
-    let mut commit_str = String::new();
-    commit_str.push_str(&format!("{} {}\n", TREE_STR, tree_hash));
-    for hash in parents.iter() {
-        commit_str.push_str(&format!("{} {}\n", PARENT_STR, hash));
-    }
-    commit_str.push_str(&format_commituser(author)?);
-    commit_str.push_str(&format_commituser(commiter)?);
-    commit_str.push_str(&format!("\n{}\n", message));
+    let commit_str = format_data(tree_hash, parents, author, commiter, message)
+        .context("could not format commit")?;
 
     let final_str = format!(
         "{} {}\0{}",
@@ -49,6 +43,24 @@ pub fn as_bytes(
     Ok(final_str.as_bytes().into())
 }
 
+fn format_data(
+    tree_hash: &Hash,
+    parents: &[Hash],
+    author: &CommitUser,
+    commiter: &CommitUser,
+    message: &str,
+) -> Result<String> {
+    let mut s = String::new();
+    s.push_str(&format!("{} {}\n", TREE_STR, tree_hash));
+    for hash in parents.iter() {
+        s.push_str(&format!("{} {}\n", PARENT_STR, hash));
+    }
+    s.push_str(&format_commituser(author)?);
+    s.push_str(&format_commituser(commiter)?);
+    s.push_str(&format!("\n{}\n", message));
+    Ok(s)
+}
+
 fn format_commituser(user: &CommitUser) -> Result<String> {
     Ok(format!(
         "{} {} {} {}\n",
@@ -58,7 +70,7 @@ fn format_commituser(user: &CommitUser) -> Result<String> {
             .duration_since(UNIX_EPOCH)
             .context("timestamp was invalid")?
             .as_secs(),
-        user.timezone.format(TIMEZONE_FORMAT).unwrap(),
+        user.timezone.format(TIMEZONE_FORMAT).expect("timezone formatting should never fail"),
     ))
 }
 
@@ -223,6 +235,19 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
         committer,
         message: message.into(),
     })
+}
+
+pub fn display(
+    tree: &Hash,
+    parents: &[Hash],
+    author: &CommitUser,
+    commiter: &CommitUser,
+    message: &str,
+) -> String {
+    let mut s = format_data(tree, parents, author, commiter, message)
+        .unwrap_or(String::from("commit could not be formatted"));
+    s.pop();  // removing trailing newline
+    s
 }
 
 // Tests

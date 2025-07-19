@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use std::io::{BufRead, Cursor};
 use std::rc::Rc;
 
@@ -7,6 +7,10 @@ use crate::hashing::Hash;
 
 use super::commit::CommitUser;
 use super::tree::TreeEntry;
+
+use super::blob;
+use super::commit;
+use super::tree;
 
 /// Represents the different type of objects there can be: Blobs, Commits and Trees, with methods
 /// for byte encoding and decoding.
@@ -49,10 +53,16 @@ impl Object {
 
 impl std::fmt::Display for Object {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            Self::Blob { .. } => Object::BLOB_STRING,
-            Self::Tree { .. } => Object::TREE_STRING,
-            Self::Commit { .. } => Object::COMMIT_STRING,
+        f.write_str(&match self {
+            Object::Blob { data } => blob::display(data),
+            Object::Tree { entries } => tree::display(entries),
+            Object::Commit {
+                tree,
+                parents,
+                author,
+                committer,
+                message,
+            } => commit::display(tree, parents, author, committer, message),
         })
     }
 }
@@ -60,15 +70,15 @@ impl std::fmt::Display for Object {
 impl Byteable for Object {
     fn as_bytes(&self) -> Result<Rc<[u8]>> {
         match self {
-            Object::Blob { data } => super::blob::as_bytes(data),
-            Object::Tree { entries } => super::tree::as_bytes(entries),
+            Object::Blob { data } => blob::as_bytes(data),
+            Object::Tree { entries } => tree::as_bytes(entries),
             Object::Commit {
                 tree,
                 parents,
                 author,
                 committer: commiter,
                 message,
-            } => super::commit::as_bytes(tree, parents, author, commiter, message),
+            } => commit::as_bytes(tree, parents, author, commiter, message),
         }
     }
 
@@ -77,13 +87,14 @@ impl Byteable for Object {
         let mut kind_buffer = Vec::new();
         Cursor::new(bytes)
             .read_until(b' ', &mut kind_buffer)
-            .context("could not get object type")?;
+            .context("could not read object header")?;
+        kind_buffer.pop().context("expected space after object type")?;
 
         let kind = String::from_utf8_lossy(&kind_buffer);
         match kind.as_ref() {
-            Object::BLOB_STRING => super::blob::from_bytes(bytes),
-            Object::TREE_STRING => super::tree::from_bytes(bytes),
-            Object::COMMIT_STRING => super::commit::from_bytes(bytes),
+            Object::BLOB_STRING => blob::from_bytes(bytes),
+            Object::TREE_STRING => tree::from_bytes(bytes),
+            Object::COMMIT_STRING => commit::from_bytes(bytes),
             _ => bail!("object did not have a valid type, got: {}", kind),
         }
     }

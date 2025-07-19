@@ -89,3 +89,7 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
         data: data_buf.into(),
     })
 }
+
+pub fn display(data: &[u8]) -> String {
+    String::from_utf8_lossy(data).to_string()
+}

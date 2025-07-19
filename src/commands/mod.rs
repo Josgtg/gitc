@@ -5,10 +5,12 @@ mod init;
 mod ls_files;
 mod reset;
 mod status;
+mod cat_file;
 
 use std::fs;
 
 use add::add;
+use cat_file::cat_file;
 use checkout::checkout;
 use commit::commit;
 use init::init;
@@ -46,5 +48,6 @@ pub fn execute_command(command: &Command) -> Result<String> {
         Command::Commit { message } => commit(message.as_ref()),
         Command::Checkout { reference } => checkout(reference),
         Command::LsFiles { debug } => ls_files(*debug),
+        Command::CatFile { hash } => cat_file(hash),
     }
 }
