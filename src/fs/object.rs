@@ -67,7 +67,7 @@ pub fn write_to_object_dir(bytes: &[u8], hash: &Hash) -> Result<()> {
     Ok(())
 }
 
-/// Looks for the file inside the objects director that hash the given hash and converts it to an
+/// Looks for the file inside the objects directory that has the given hash and converts it to an
 /// object.
 ///
 /// # Errors
