@@ -219,7 +219,7 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
         .context("expected timezone when reading committer")?;
 
     let committer = CommitUser {
-        kind: CommitUserKind::Author,
+        kind: CommitUserKind::Commiter,
         identifier,
         timestamp: UNIX_EPOCH
             .checked_add(Duration::from_secs(timestamp_u64))
