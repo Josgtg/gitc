@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::str::{FromStr, Split};
 use std::time::{Duration, UNIX_EPOCH};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use time::UtcOffset;
 
 use crate::hashing::Hash;
@@ -86,29 +86,36 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
     // This does not check a valid length for the moment
     let mut cursor = Cursor::new(bytes);
 
-    let mut header_buf = Vec::new();
-    cursor
-        .read_until(SPACE_BYTE, &mut header_buf)
-        .context("could not read tree header")?;
-    if header_buf.pop() != Some(SPACE_BYTE) {
-        bail!("expected space byte after header");
-    }
-    if String::from_utf8_lossy(&header_buf) != Object::COMMIT_STRING {
-        bail!("file is not a commit string")
+    // verifiying header is valid
+    {
+        let mut header_buf = Vec::new();
+        cursor
+            .read_until(SPACE_BYTE, &mut header_buf)
+            .context("could not read tree header")?;
+        if header_buf.pop() != Some(SPACE_BYTE) {
+            bail!("expected space byte after header");
+        }
+        if String::from_utf8_lossy(&header_buf) != Object::COMMIT_STRING {
+            bail!("file is not a commit string")
+        }
     }
 
-    let mut length_buf = Vec::new();
-    cursor
-        .read_until(NULL_BYTE, &mut length_buf)
-        .context("could not read length")?;
-    if length_buf.pop() != Some(NULL_BYTE) {
-        bail!("expected null byte after tree length")
+    let _length: usize;
+    {
+        let mut length_buf = Vec::new();
+        cursor
+            .read_until(NULL_BYTE, &mut length_buf)
+            .context("could not read length")?;
+        if length_buf.pop() != Some(NULL_BYTE) {
+            bail!("expected null byte after tree length")
+        }
+        // Not storing length since with actual implementation is kinda hard to compare
+        _length = String::from_utf8_lossy(&length_buf)
+            .parse()
+            .context("length was invalid")?;
     }
-    // Not storing length since with actual implementation is kinda hard to compare
-    let _: usize = String::from_utf8_lossy(&length_buf)
-        .parse()
-        .context("length was invalid")?;
 
+    // parsing the rest of the commit as a string
     let last_position = cursor.position() as usize;
     let remaining = &cursor.into_inner()[last_position..];
 
@@ -168,8 +175,10 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
     if next != AUTHOR_STR {
         bail!("expected {}", AUTHOR_STR)
     }
+
     // author {identifier} {timestamp} {timezone}
     let author_vec: Vec<&str> = splitted.collect();
+
     let mut words = author_vec.len();
     let mut identifier = author_vec[..words - 2].join(" ");
     if identifier.is_empty() {
@@ -199,9 +208,11 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
         .next()
         .context("commit file ended abruptly")?
         .split(' ');
+
     if splitted.next() != Some(COMMITTER_STR) {
         bail!("expected {}", COMMITTER_STR)
     }
+
     let committer_vec: Vec<&str> = splitted.collect();
     words = committer_vec.len();
     identifier = committer_vec[..words - 2].join(" ");

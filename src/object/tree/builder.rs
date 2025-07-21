@@ -345,7 +345,6 @@ mod tests {
         let result = builder.build().unwrap();
 
         assert_eq!(result.path, PathBuf::new());
-        assert_eq!(result.subtrees.len(), 0);
 
         match result.tree {
             Object::Tree { entries } => {
@@ -367,7 +366,6 @@ mod tests {
         let result = builder.build().unwrap();
 
         assert_eq!(result.path, PathBuf::new());
-        assert_eq!(result.subtrees.len(), 0);
 
         match result.tree {
             Object::Tree { entries } => {
@@ -388,21 +386,13 @@ mod tests {
         builder.add_object(TEST_MODE_FILE, PathBuf::from("README.md"), hash1.clone());
         builder.add_object(TEST_MODE_FILE, PathBuf::from("src/main.rs"), hash2.clone());
 
+        let entries = &builder.subtrees.get(&PathBuf::from("src")).unwrap().entries;
+        assert_entry_exists(&entries, "main.rs", TEST_MODE_FILE, &hash2);
+
         let result = builder.build().unwrap();
 
         assert_eq!(result.path, PathBuf::new());
-        assert_eq!(result.subtrees.len(), 1);
 
-        // Check that subtree is present
-        assert_eq!(result.subtrees[0].path, PathBuf::from("src"));
-
-        match &result.subtrees[0].tree {
-            Object::Tree { entries } => {
-                assert_eq!(entries.len(), 1);
-                assert_entry_exists(&entries, "main.rs", TEST_MODE_FILE, &hash2);
-            }
-            _ => panic!("Expected Tree object"),
-        }
 
         // Check that root tree has entries for both the file and the subtree
         match result.tree {
@@ -429,28 +419,16 @@ mod tests {
             hash1.clone(),
         );
         builder.add_object(TEST_MODE_FILE, PathBuf::from("src/main.rs"), hash2);
-
-        let result = builder.build().unwrap();
-
-        assert_eq!(result.path, PathBuf::new());
-        assert_eq!(result.subtrees.len(), 1);
+        assert_eq!(builder.subtrees.len(), 1);
 
         // Check src subtree
-        let src_subtree = &result.subtrees[0];
-        assert_eq!(src_subtree.path, PathBuf::from("src"));
+        let src_subtree = &builder.subtrees.get(&PathBuf::from("src")).unwrap();
         assert_eq!(src_subtree.subtrees.len(), 1);
 
         // Check utils subtree
-        let utils_subtree = &src_subtree.subtrees[0];
-        assert_eq!(utils_subtree.path, PathBuf::from("utils"));
+        let utils_subtree = &src_subtree.subtrees.get(&PathBuf::from("utils")).unwrap();
 
-        match &utils_subtree.tree {
-            Object::Tree { entries } => {
-                assert_eq!(entries.len(), 1);
-                assert_entry_exists(&entries, "helper.rs", TEST_MODE_FILE, &hash1);
-            }
-            _ => panic!("Expected Tree object"),
-        }
+        assert_entry_exists(&utils_subtree.entries, "helper.rs", TEST_MODE_FILE, &hash1);
     }
 
     #[test]

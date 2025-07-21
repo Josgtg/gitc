@@ -67,86 +67,94 @@ pub fn as_bytes(entries: &[TreeEntry]) -> Result<Rc<[u8]>> {
 pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
     let mut cursor = Cursor::new(bytes);
 
-    let mut kind_buf = Vec::new();
-    cursor
-        .read_until(SPACE_BYTE, &mut kind_buf)
-        .context("could not read type")?;
-    if kind_buf.pop() != Some(SPACE_BYTE) {
-        bail!("expected space after object type");
+    let kind: String;
+    {
+        let mut kind_buf = Vec::new();
+        cursor
+            .read_until(SPACE_BYTE, &mut kind_buf)
+            .context("could not read type")?;
+        if kind_buf.pop() != Some(SPACE_BYTE) {
+            bail!("expected space after object type");
+        }
+
+        kind = String::from_utf8_lossy(&kind_buf).to_string();
+        if kind != Object::TREE_STRING {
+            bail!("object is not a tree, got: {}", kind)
+        }
     }
 
-    let kind = String::from_utf8_lossy(&kind_buf);
-    if kind != Object::TREE_STRING {
-        bail!("object is not a tree, got: {}", kind)
-    }
+    let length: usize;
+    {
+        let mut len_buf = Vec::new();
+        cursor
+            .read_until(NULL_BYTE, &mut len_buf)
+            .context("could not read lenght")?;
+        if len_buf.pop() != Some(NULL_BYTE) {
+            bail!("expected null byte after data length")
+        }
 
-    let mut len_buf = Vec::new();
-    cursor
-        .read_until(NULL_BYTE, &mut len_buf)
-        .context("could not read lenght")?;
-    if len_buf.pop() != Some(NULL_BYTE) {
-        bail!("expected null byte after data length")
+        length = String::from_utf8(len_buf)
+            .context("failed to build string from object's decoded data length")?
+            .parse()
+            .map_err(|e| anyhow!("could not read data object lenght as a number: {:?}", e))?;
     }
-
-    let data_len: usize = String::from_utf8(len_buf)
-        .context("failed to build string from object's decoded data length")?
-        .parse()
-        .map_err(|e| anyhow!("could not read data object lenght as a number: {:?}", e))?;
 
     let mut entries = Vec::new();
-    let mut mode_buf: Vec<u8>;
-    let mut path_buf: Vec<u8>;
-    let mut hash_buf = [0; HASH_BYTE_LEN];
     let mut actual_len = 0;
-    let mut bytes_read: usize;
-    loop {
-        // reading mode
-        mode_buf = Vec::new();
-        bytes_read = cursor
-            .read_until(SPACE_BYTE, &mut mode_buf)
-            .context("could not read tree entry mode")?;
+    {
+        let mut mode_buf: Vec<u8>;
+        let mut path_buf: Vec<u8>;
+        let mut hash_buf = [0; HASH_BYTE_LEN];
+        let mut bytes_read: usize;
+        loop {
+            // reading mode
+            mode_buf = Vec::new();
+            bytes_read = cursor
+                .read_until(SPACE_BYTE, &mut mode_buf)
+                .context("could not read tree entry mode")?;
 
-        // If this returned 0, the file has ended
-        if bytes_read == 0 {
-            break;
+            // If this returned 0, the file has ended
+            if bytes_read == 0 {
+                break;
+            }
+
+            if mode_buf.pop() != Some(SPACE_BYTE) {
+                bail!("expected space after tree entry mode")
+            }
+            actual_len += mode_buf.len() + 1; // One for the space byte
+
+            // reading path
+            path_buf = Vec::new();
+            cursor
+                .read_until(NULL_BYTE, &mut path_buf)
+                .context("could not read tree entry path")?;
+            if path_buf.pop() != Some(NULL_BYTE) {
+                bail!("expected null byte after tree entry path")
+            }
+            actual_len += path_buf.len() + 1; // One for the null byte
+
+            // reading hash
+            cursor
+                .read_exact(&mut hash_buf)
+                .context("could not read tree entry hash")?;
+            actual_len += HASH_BYTE_LEN;
+
+            // creating and adding tree entry
+            entries.push(TreeEntry {
+                mode: String::from_utf8_lossy(&mode_buf)
+                    .parse::<u32>()
+                    .context("could not get mode from bytes read (could not parse to a number)")?,
+                path: PathBuf::from(OsString::from_vec(path_buf)),
+                hash: Hash::from(hash_buf),
+            });
         }
-
-        if mode_buf.pop() != Some(SPACE_BYTE) {
-            bail!("expected space after tree entry mode")
-        }
-        actual_len += mode_buf.len() + 1; // One for the space byte
-
-        // reading path
-        path_buf = Vec::new();
-        cursor
-            .read_until(NULL_BYTE, &mut path_buf)
-            .context("could not read tree entry path")?;
-        if path_buf.pop() != Some(NULL_BYTE) {
-            bail!("expected null byte after tree entry path")
-        }
-        actual_len += path_buf.len() + 1; // One for the null byte
-
-        // reading hash
-        cursor
-            .read_exact(&mut hash_buf)
-            .context("could not read tree entry hash")?;
-        actual_len += HASH_BYTE_LEN;
-
-        // creating and adding tree entry
-        entries.push(TreeEntry {
-            mode: String::from_utf8_lossy(&mode_buf)
-                .parse::<u32>()
-                .context("could not get mode from bytes read (could not parse to a number)")?,
-            path: PathBuf::from(OsString::from_vec(path_buf)),
-            hash: Hash::from(hash_buf),
-        });
     }
 
-    if actual_len != data_len {
+    if actual_len != length {
         bail!(
             "actual data len {} did not match object data len {}",
             actual_len,
-            data_len
+            length
         )
     }
 
