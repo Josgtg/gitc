@@ -32,15 +32,21 @@ enum Status {
 /// - The index file couldn't be read.
 /// - Could not get object data from a file in the working tree.
 pub fn status() -> Result<String> {
-    let mut _status = Vec::new();
+    let mut status = Vec::new();
 
-    let _index = fs::index::read_index_file().context("could not read index file")?;
+    let index = fs::index::read_index_file().context("could not read index file")?;
+
+    let hashes_in_index = 0;
 
     let all_files = fs::read_not_ignored_paths(&Constants::working_tree_root_path()).context("could not get files in working tree")?;
 
-    let _working_tree = fs::object::as_blob_objects(all_files).context("could not read files in working tree as objects")?;
+    let working_tree = fs::object::as_blob_objects(all_files).context("could not read files in working tree as objects")?;
 
-    Ok(format_status(_status))
+    for o in working_tree {
+
+    }
+
+    Ok(format_status(status))
 }
 
 /// Given a list of file statuses, returns a formatted string depicting this status for every file.

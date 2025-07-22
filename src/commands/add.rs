@@ -5,12 +5,11 @@ use std::rc::Rc;
 
 use anyhow::{Context, Result};
 
-use crate::Constants;
 use crate::byteable::Byteable;
 use crate::fs;
-use crate::gitignore;
 use crate::hashing::Hash;
-use crate::index::{IndexEntry, builder::IndexBuilder};
+use crate::index::{builder::IndexBuilder, IndexEntry};
+use crate::Constants;
 
 const PATTERN_EVERY_FILE: &str = ".";
 
@@ -23,20 +22,11 @@ pub fn add(files: &[OsString]) -> Result<String> {
 
     let root_path = Constants::working_tree_root_path();
 
-    let paths: Vec<PathBuf> = if files
-        // checking for "add all" pattern
-        .first()
-        .expect("file did not have first element despite being checked for emptiness")
-        == PATTERN_EVERY_FILE
-    {
-        fs::path::read_dir_paths(&root_path).context("could not read paths in repository folder")?
+    let filtered_paths: Vec<PathBuf> = if files[0] == PATTERN_EVERY_FILE {
+        fs::read_not_ignored_paths(&root_path).context("could not filter ignored files")?
     } else {
         files.iter().map(PathBuf::from).collect()
     };
-
-    // Discarding ignored files, important to check as relative path
-    let filtered_paths: Vec<PathBuf> = gitignore::not_in_gitignore(&root_path, paths)
-        .context("could not read get filtered files from .gitignore")?;
 
     // reading all (not ignored) files as blob objects
     let objects = fs::object::as_blob_objects(filtered_paths).context("could not get objects")?;
@@ -52,9 +42,8 @@ pub fn add(files: &[OsString]) -> Result<String> {
         paths_already_in_index.insert(ie.path().to_owned());
     }
 
-    let mut index_builder = IndexBuilder::from(previous_index);
-
     // adding index entries
+    let mut index_builder = IndexBuilder::from(previous_index);
     let mut index_entry: IndexEntry;
     let mut path: PathBuf;
     let mut hash: Hash;
@@ -71,13 +60,14 @@ pub fn add(files: &[OsString]) -> Result<String> {
         if paths_already_in_index.contains(&path) {
             // file already in index
             if !hashes_already_in_index.contains(&hash) {
-                // file has been modified
+                // ...and has been modified. We remove it and add it as if it was a new file
                 index_builder.remove_index_entry_by_path(&path);
             } else {
-                // file is already included and not modified
+                // ...and is unchanged, we just ignore it
                 continue;
             }
         }
+        // if the `if` above is not triggered, this is a new file
 
         index_entry = IndexEntry::try_from_file(&path, hash.clone()).context(format!(
             "could not create index entry from file: {:?}",
