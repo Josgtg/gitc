@@ -89,7 +89,7 @@ impl IndexEntry {
             file_size: metadata.size() as u32,
             object_hash,
             flags: IndexEntry::default_flags(file_path.as_os_str().len()),
-            path: relative_path(file_path, &Constants::repository_folder_path())
+            path: relative_path(file_path, &Constants::working_tree_root_path())
                 .unwrap_or(file_path.into()),
         })
     }

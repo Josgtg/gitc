@@ -1,4 +1,4 @@
-use std::io::{BufRead, Cursor};
+use std::io::Cursor;
 use std::rc::Rc;
 use std::str::{FromStr, Split};
 use std::time::{Duration, UNIX_EPOCH};
@@ -8,6 +8,7 @@ use time::UtcOffset;
 
 use crate::hashing::Hash;
 use crate::object::Object;
+use crate::utils::cursor::EasyRead;
 
 use super::*;
 
@@ -50,31 +51,40 @@ fn format_data(
     commiter: &CommitUser,
     message: &str,
 ) -> Result<String> {
+    fn format_commituser(user: &CommitUser) -> Result<String> {
+        Ok(format!(
+            "{} {} {} {}\n",
+            user.kind,
+            user.identifier,
+            user.timestamp
+                .duration_since(UNIX_EPOCH)
+                .context("timestamp was invalid")?
+                .as_secs(),
+            user.timezone
+                .format(TIMEZONE_FORMAT)
+                .expect("timezone formatting should never fail"),
+        ))
+    }
+
     let mut s = String::new();
+
+    // tree {hash}
     s.push_str(&format!("{} {}\n", TREE_STR, tree_hash));
+
+    // parent {hash}
     for hash in parents.iter() {
         s.push_str(&format!("{} {}\n", PARENT_STR, hash));
     }
+
+    // author {identifier} {timestamp} {timezone}
     s.push_str(&format_commituser(author)?);
     s.push_str(&format_commituser(commiter)?);
+
     s.push_str(&format!("\n{}\n", message));
+
     Ok(s)
 }
 
-fn format_commituser(user: &CommitUser) -> Result<String> {
-    Ok(format!(
-        "{} {} {} {}\n",
-        user.kind,
-        user.identifier,
-        user.timestamp
-            .duration_since(UNIX_EPOCH)
-            .context("timestamp was invalid")?
-            .as_secs(),
-        user.timezone
-            .format(TIMEZONE_FORMAT)
-            .expect("timezone formatting should never fail"),
-    ))
-}
 
 /// Parses a sequence of bytes expecting the format of a commit file, returning a Commit object.
 ///
@@ -86,34 +96,18 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
     // This does not check a valid length for the moment
     let mut cursor = Cursor::new(bytes);
 
-    // verifiying header is valid
+    // verifying this is a commit
     {
-        let mut header_buf = Vec::new();
-        cursor
-            .read_until(SPACE_BYTE, &mut header_buf)
-            .context("could not read tree header")?;
-        if header_buf.pop() != Some(SPACE_BYTE) {
-            bail!("expected space byte after header");
-        }
-        if String::from_utf8_lossy(&header_buf) != Object::COMMIT_STRING {
+        let kind = String::from_utf8_lossy(&cursor.read_until_checked(SPACE_BYTE)?).to_string();
+        if kind != Object::COMMIT_STRING {
             bail!("file is not a commit string")
         }
     }
 
-    let _length: usize;
-    {
-        let mut length_buf = Vec::new();
-        cursor
-            .read_until(NULL_BYTE, &mut length_buf)
-            .context("could not read length")?;
-        if length_buf.pop() != Some(NULL_BYTE) {
-            bail!("expected null byte after tree length")
-        }
-        // Not storing length since with actual implementation is kinda hard to compare
-        _length = String::from_utf8_lossy(&length_buf)
-            .parse()
-            .context("length was invalid")?;
-    }
+    let length_str = String::from_utf8_lossy(&cursor.read_until_checked(NULL_BYTE)?).to_string();
+    let _length: usize = length_str
+        .parse()
+        .context("length was invalid")?;
 
     // parsing the rest of the commit as a string
     let last_position = cursor.position() as usize;
@@ -142,6 +136,8 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
     ))?;
 
     // parent {parent_hash} (if exists)
+    // reading only the first word to determine if read as a parent line or going straight to
+    // author line
     splitted = lines
         .next()
         .context("commit object only had one line")?
@@ -163,6 +159,7 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
             PARENT_STR
         ))?);
         // Updating, the next code expects `splitted` to be at the second word of the author line
+        // or another parent line
         splitted = lines
             .next()
             .context("commit file ended abruptly")?
@@ -172,72 +169,61 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
             .context(format!("expected {}, got nothing", AUTHOR_STR))?;
     }
 
+    // {userkind} {identifier} {timestamp} {timezone}
+    /// This function expects `userkind` to not be present in `splitted` (have already been
+    /// consumed).
+    fn commituser_from_splitted(splitted: Split<char>, kind: CommitUserKind) -> Result<CommitUser> {
+        
+        let commuser_vec: Vec<&str> = splitted.collect();
+        let word_amount = commuser_vec.len();
+
+        // reading every word but the last two since the identifier can have an arbitrary number of
+        // words but the last two are always the timestamp and timezone.
+        let identifier = commuser_vec[..word_amount - 2].join(" ");
+        if identifier.is_empty() {
+            bail!("expected identifier when reading author")
+        }
+
+        let timestamp_str = *commuser_vec
+            .get(word_amount - 2)
+            .context("expected timestamp when reading author")?;
+        let timestamp_u64 = timestamp_str
+            .parse::<u64>()
+            .context("could not parse timestamp to a number when reading author")?;
+
+        let timezone = *commuser_vec
+            .get(word_amount - 1)
+            .context("expected timezone when reading author")?;
+
+        Ok(CommitUser {
+            kind,
+            identifier,
+            timestamp: UNIX_EPOCH
+                .checked_add(Duration::from_secs(timestamp_u64))
+                .context("author timestamp was invalid")?,
+            timezone: UtcOffset::parse(timezone, TIMEZONE_FORMAT)
+                .context("author timezone was invalid")?,
+        })
+    }
+
+    // reading author, `next` is at the first word of the line after the last parent (if there was
+    // one or more)
     if next != AUTHOR_STR {
         bail!("expected {}", AUTHOR_STR)
     }
+    let author = commituser_from_splitted(splitted, CommitUserKind::Author)?;
 
-    // author {identifier} {timestamp} {timezone}
-    let author_vec: Vec<&str> = splitted.collect();
-
-    let mut words = author_vec.len();
-    let mut identifier = author_vec[..words - 2].join(" ");
-    if identifier.is_empty() {
-        bail!("expected identifier when reading author")
-    }
-    let mut timestamp_str = *author_vec
-        .get(words - 2)
-        .context("expected timestamp when reading author")?;
-    let mut timestamp_u64 = timestamp_str
-        .parse::<u64>()
-        .context("could not parse timestamp to a number when reading author")?;
-    let mut timezone = *author_vec
-        .get(words - 1)
-        .context("expected timezone when reading author")?;
-    let author = CommitUser {
-        kind: CommitUserKind::Author,
-        identifier,
-        timestamp: UNIX_EPOCH
-            .checked_add(Duration::from_secs(timestamp_u64))
-            .context("author timestamp was invalid")?,
-        timezone: UtcOffset::parse(timezone, TIMEZONE_FORMAT)
-            .context("author timezone was invalid")?,
-    };
-
-    // committer {identifier} {timestamp} {timezone}
+    // consuming first word, `splitted` does not have to contain the first word
     splitted = lines
         .next()
         .context("commit file ended abruptly")?
         .split(' ');
 
+    // reading committer
     if splitted.next() != Some(COMMITTER_STR) {
         bail!("expected {}", COMMITTER_STR)
     }
-
-    let committer_vec: Vec<&str> = splitted.collect();
-    words = committer_vec.len();
-    identifier = committer_vec[..words - 2].join(" ");
-    if identifier.is_empty() {
-        bail!("expected identifier when reading commiter")
-    }
-    timestamp_str = *committer_vec
-        .get(words - 2)
-        .context("expected timestamp when reading committer")?;
-    timestamp_u64 = timestamp_str
-        .parse::<u64>()
-        .context("could not parse timestamp to a number when reading committer")?;
-    timezone = *committer_vec
-        .get(words - 1)
-        .context("expected timezone when reading committer")?;
-
-    let committer = CommitUser {
-        kind: CommitUserKind::Commiter,
-        identifier,
-        timestamp: UNIX_EPOCH
-            .checked_add(Duration::from_secs(timestamp_u64))
-            .context("committer timestamp was invalid")?,
-        timezone: UtcOffset::parse(timezone, TIMEZONE_FORMAT)
-            .context("committer timezone was invalid")?,
-    };
+    let committer = commituser_from_splitted(splitted, CommitUserKind::Committer)?;
 
     lines.next(); // skipping empty newline
 
@@ -321,7 +307,7 @@ mod tests {
         ));
         assert!(matches!(
             CommitUserKind::from_str("committer"),
-            Ok(CommitUserKind::Commiter)
+            Ok(CommitUserKind::Committer)
         ));
         assert!(CommitUserKind::from_str("invalid").is_err());
     }
@@ -329,7 +315,7 @@ mod tests {
     #[test]
     fn test_commit_user_kind_display() {
         assert_eq!(CommitUserKind::Author.to_string(), "author");
-        assert_eq!(CommitUserKind::Commiter.to_string(), "committer");
+        assert_eq!(CommitUserKind::Committer.to_string(), "committer");
     }
 
     // Tests for as_bytes
@@ -346,7 +332,7 @@ mod tests {
             TEST_TIMEZONE_OFFSET,
         );
         let committer = create_test_user(
-            CommitUserKind::Commiter,
+            CommitUserKind::Committer,
             TEST_COMMITTER_NAME,
             TEST_COMMITTER_EMAIL,
             TEST_TIMESTAMP_COMMITTER,
@@ -413,7 +399,7 @@ mod tests {
             TEST_TIMEZONE_UTC,
         );
         let committer = create_test_user(
-            CommitUserKind::Commiter,
+            CommitUserKind::Committer,
             TEST_COMMITTER_NAME,
             TEST_COMMITTER_EMAIL,
             TEST_TIMESTAMP_COMMITTER,
@@ -557,7 +543,7 @@ mod tests {
             TEST_TIMEZONE_OFFSET,
         );
         let committer = create_test_user(
-            CommitUserKind::Commiter,
+            CommitUserKind::Committer,
             TEST_COMMITTER_NAME,
             TEST_COMMITTER_EMAIL,
             TEST_TIMESTAMP_COMMITTER,
@@ -612,7 +598,7 @@ mod tests {
             TEST_TIMEZONE_UTC,
         );
         let committer = create_test_user(
-            CommitUserKind::Commiter,
+            CommitUserKind::Committer,
             TEST_COMMITTER_NAME,
             TEST_COMMITTER_EMAIL,
             TEST_TIMESTAMP_COMMITTER,
@@ -783,7 +769,7 @@ mod tests {
             TEST_TIMEZONE_POSITIVE,
         );
         let committer = create_test_user(
-            CommitUserKind::Commiter,
+            CommitUserKind::Committer,
             TEST_COMMITTER_NAME,
             TEST_COMMITTER_EMAIL,
             TEST_TIMESTAMP_COMMITTER,
@@ -825,7 +811,7 @@ mod tests {
             TEST_TIMEZONE_OFFSET,
         );
         let committer = create_test_user(
-            CommitUserKind::Commiter,
+            CommitUserKind::Committer,
             TEST_COMMITTER_NAME,
             TEST_COMMITTER_EMAIL,
             TEST_TIMESTAMP_COMMITTER,

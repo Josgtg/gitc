@@ -8,7 +8,7 @@ use anyhow::Result;
 use crate::Constants;
 
 /// Reads the path stored inside the HEAD file.
-//?/
+//
 /// # Errors
 ///
 /// This function will fail if the HEAD file could not be opened or read from.
@@ -39,12 +39,12 @@ pub fn read_dir_paths(path: &Path) -> Result<Vec<PathBuf>> {
     Ok(paths)
 }
 
-// Returns the files in `path` that are not inside a .gitignore file in the same directory.
-//
-// # Errors
-//
-// This function can fail if it couldn't get the files inside `path` or could not filter from the
-// gitignore.
+/// Returns the files in `path` that are not inside a .gitignore file in the same directory.
+///
+/// # Errors
+///
+/// This function can fail if it couldn't get the files inside `path` or could not filter from the
+/// gitignore.
 pub fn read_not_ignored_paths(path: &Path) -> Result<Vec<PathBuf>> {
     let all_paths = read_dir_paths(path).context("could not read root directory entries")?;
     crate::gitignore::not_in_gitignore(path, all_paths)

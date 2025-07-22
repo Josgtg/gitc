@@ -1,16 +1,33 @@
-use std::io::{BufRead, Cursor, Read};
+use std::io::{Cursor, Read};
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{bail, Context, Result, anyhow};
 
-use super::Object;
+use crate::utils::cursor::EasyRead;
+
+use super::*;
 
 /// Represents an object with some extra information, like the path.
 #[derive(Debug)]
 pub struct BlobExt {
     pub blob: Object,
     pub path: PathBuf,
+}
+
+impl BlobExt {
+    /// Reads the data from a file in `path` and returns a blob object containing said data.
+    ///
+    /// # Errors
+    ///
+    /// This function will fail if the `path` could not be read from.
+    pub fn from_file(path: PathBuf) -> Result<Self> {
+        let data = std::fs::read(&path).context("could not read file")?;
+        Ok(BlobExt {
+            blob: Object::from_bytes_new_blob(&data),
+            path,
+        })
+    } 
 }
 
 /// Returns the encoded version of the bytes of a blob object, following the next format:
@@ -41,13 +58,7 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
     let mut cursor = Cursor::new(bytes);
 
     // reading kind
-    let mut kind_buf = Vec::new();
-    cursor
-        .read_until(b' ', &mut kind_buf)
-        .context("could not read blob's type")?;
-    kind_buf.pop(); // popping space character
-    let kind = String::from_utf8_lossy(&kind_buf);
-
+    let kind = String::from_utf8_lossy(&cursor.read_until_checked(SPACE_BYTE)?).to_string();
     if kind != Object::BLOB_STRING {
         bail!(
             "object type is not {:?}, but {:?}",
@@ -57,16 +68,8 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
     }
 
     // reading data length
-    let mut len_buf = Vec::new();
-    cursor
-        .read_until(b'\0', &mut len_buf)
-        .context("failed to read until null byte when decoding object")?; // reading until null char, before this there is the data length
-
-    if len_buf.pop() != Some(b'\0') {
-        bail!("expected null byte after object data length")
-    }
-    let data_len: usize = String::from_utf8(len_buf)
-        .context("failed to build string from object's decoded data length")?
+    let len_str = String::from_utf8_lossy(&cursor.read_until_checked(NULL_BYTE)?).to_string();
+    let data_len: usize = len_str
         .parse()
         .map_err(|e| anyhow!("could not read data object lenght as a number: {:?}", e))?;
 

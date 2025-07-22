@@ -39,24 +39,25 @@ pub fn read_gitignore(path: &Path) -> Result<HashSet<PathBuf>> {
     Ok(set)
 }
 
-/// Returns a list of files not in the .gitignore file (filters them out).
+/// Returns a list of files not in the .gitignore file (filters `paths_to_filter`).
 ///
 /// This function looks for a .gitignore file directly inside of `path`.
 ///
-/// It also checks every path as if it was relative to `path`.
+/// It also checks every path in `paths_to_filter` as if it was relative to `path`.
 ///
 /// # Errors
 ///
 /// This function can fail if the .gitignore file could not be read.
-pub fn not_in_gitignore(path: &Path, paths: Vec<PathBuf>) -> Result<Vec<PathBuf>> {
+pub fn not_in_gitignore(path_to_look: &Path, paths_to_filter: Vec<PathBuf>) -> Result<Vec<PathBuf>> {
+    // Always add .gitignore despite it being hidden
     let always_add: HashSet<PathBuf> =
         HashSet::from([PathBuf::from(Constants::GITIGNORE_FILE_NAME)]);
 
-    let files_to_ignore = read_gitignore(path).context("could not read .gitignore file")?;
+    let files_to_ignore = read_gitignore(path_to_look).context("could not read .gitignore file")?;
 
-    let relative_paths: Vec<PathBuf> = paths
+    let relative_paths: Vec<PathBuf> = paths_to_filter
         .into_iter()
-        .map(|p| relative_path(&p, path).unwrap_or(p))
+        .map(|p| relative_path(&p, path_to_look).unwrap_or(p))
         .collect();
 
     Ok(relative_paths

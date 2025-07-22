@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-use std::path::Path;
 use std::path::PathBuf;
 
 use anyhow::Context;
@@ -8,10 +6,6 @@ use colored::Colorize;
 
 use crate::Constants;
 use crate::fs;
-use crate::hashing::Hash;
-use crate::index::IndexEntry;
-
-use crate::fs::index::read_index_file;
 
 struct FileStatus {
     path: PathBuf,
@@ -37,45 +31,23 @@ enum Status {
 /// This function can fail if:
 /// - The index file couldn't be read.
 /// - Could not get object data from a file in the working tree.
-#[allow(unused)]
 pub fn status() -> Result<String> {
-    // Getting index data an placing it in hash sets for easy access
-    let index = read_index_file().context("could not read from index file")?;
-    let paths_set: HashSet<&Path> = HashSet::from_iter(index.entries().map(IndexEntry::path));
-    let hashes_set: HashSet<Hash> =
-        HashSet::from_iter(index.entries().map(IndexEntry::object_hash));
+    let mut _status = Vec::new();
 
-    let root_path = Constants::repository_folder_path();
+    let _index = fs::index::read_index_file().context("could not read index file")?;
 
-    let paths = fs::path::read_not_ignored_paths(&root_path)
-        .context("could not get files from directory")?;
+    let all_files = fs::read_not_ignored_paths(&Constants::working_tree_root_path()).context("could not get files in working tree")?;
 
-    let objects = fs::object::as_blob_objects(paths).context("could not create objects")?;
+    let _working_tree = fs::object::as_blob_objects(all_files).context("could not read files in working tree as objects")?;
 
-    // Getting files from working tree
-
-    let mut changes_staged = String::from("Changes to be commited:\n");
-    let mut include_staged = false;
-    let mut changes_not_staged = String::from("Untracked files:\n");
-    let mut include_not_staged = false;
-
-    // Checking differences
-    let mut status = Vec::with_capacity(objects.len());
-    let mut path: PathBuf;
-    let mut hash: Hash;
-    for o in objects {
-        // Implement once commit is done
-    }
-
-    let s = format_status(status);
-
-    Ok(s)
+    Ok(format_status(_status))
 }
 
 /// Given a list of file statuses, returns a formatted string depicting this status for every file.
 fn format_status(status: Vec<FileStatus>) -> String {
     let mut tracked = String::from("Changes to commit:\n");
     let mut tracked_files = false;
+
     let mut untracked = String::from("Untracked files:\n");
     let mut untracked_files = false;
 
@@ -86,21 +58,15 @@ fn format_status(status: Vec<FileStatus>) -> String {
             Status::Moved { previous } => format!("moved: {:?} -> {:?}\n", previous, s.path),
             Status::Deleted => format!("deleted: {:?}\n", s.path),
             Status::Modified => format!("modified: {:?}\n", s.path),
-            Status::Unchanged => String::new(),
+            Status::Unchanged => continue,
         };
-        if let Status::Unchanged = s.status {
-            continue;
-        }
-        match s.tracked {
-            true => {
-                tracked_files = true;
-                tracked.push_str(&status_str);
-            }
-            false => {
-                untracked_files = true;
-                untracked.push_str(&status_str);
-            }
-        }
+        if s.tracked {
+            tracked_files = true;
+            tracked.push_str(&status_str);
+        } else {
+            untracked_files = true;
+            untracked.push_str(&status_str);
+        }        
     }
 
     let mut final_str = String::new();

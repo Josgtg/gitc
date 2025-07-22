@@ -16,13 +16,13 @@ impl Constants {
     pub const GITIGNORE_FILE_NAME: &str = ".gitignore";
 
     /// The root folder of the repository
-    pub fn repository_folder_path() -> PathBuf {
+    pub fn working_tree_root_path() -> PathBuf {
         env::current_dir().expect("failed to get current dir")
     }
 
     /// The location of the .git folder
     pub fn repository_path() -> PathBuf {
-        let mut path = Constants::repository_folder_path();
+        let mut path = Constants::working_tree_root_path();
         path.push(Constants::REPOSITORY_FOLDER_NAME);
         path
     }

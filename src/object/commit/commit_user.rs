@@ -29,7 +29,7 @@ impl CommitUser {
 #[derive(Debug)]
 pub enum CommitUserKind {
     Author,
-    Commiter,
+    Committer,
 }
 
 impl FromStr for CommitUserKind {
@@ -38,7 +38,7 @@ impl FromStr for CommitUserKind {
     fn from_str(s: &str) -> Result<Self> {
         match s {
             AUTHOR_STR => Ok(CommitUserKind::Author),
-            COMMITTER_STR => Ok(CommitUserKind::Commiter),
+            COMMITTER_STR => Ok(CommitUserKind::Committer),
             _ => bail!("invalid commit user kind: {}", s),
         }
     }
@@ -48,7 +48,7 @@ impl Display for CommitUserKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             CommitUserKind::Author => AUTHOR_STR,
-            CommitUserKind::Commiter => COMMITTER_STR,
+            CommitUserKind::Committer => COMMITTER_STR,
         })
     }
 }

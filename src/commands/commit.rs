@@ -42,7 +42,7 @@ pub fn commit(message: &str) -> Result<String> {
         tree,
         parents: parents.into(),
         author: CommitUser::default(CommitUserKind::Author),
-        committer: CommitUser::default(CommitUserKind::Commiter),
+        committer: CommitUser::default(CommitUserKind::Committer),
         message: message.into(),
     };
 

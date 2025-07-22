@@ -1,16 +1,17 @@
-use anyhow::{Context, Result, bail};
-use std::io::{BufRead, Cursor};
+use anyhow::{bail, Context, Result};
+use std::io::Cursor;
 use std::rc::Rc;
 
 use crate::byteable::Byteable;
 use crate::hashing::Hash;
+use crate::utils::cursor::EasyRead;
 
 use super::commit::CommitUser;
 use super::tree::TreeEntry;
 
-use super::blob;
 use super::commit;
 use super::tree;
+use super::{blob, NULL_BYTE, SPACE_BYTE};
 
 /// Represents the different type of objects there can be: Blobs, Commits and Trees, with methods
 /// for byte encoding and decoding.
@@ -49,6 +50,26 @@ impl Object {
             &self.as_bytes().context("could not serialize object")?,
         ))
     }
+
+    /// Tries to read an object header file from a sequence of bytes, returning the type of
+    /// object if it had a valid header.
+    fn read_header(bytes: &[u8]) -> Result<String> {
+        let mut cursor = Cursor::new(bytes);
+
+        let kind_bytes = cursor.read_until_checked(SPACE_BYTE)?;
+        let kind = String::from_utf8_lossy(&kind_bytes).to_string();
+
+        // reading lenght just to verify it has a valid header
+        let _lenght = cursor.read_until_checked(NULL_BYTE)?;
+
+        Ok(kind)
+    }
+
+    /// This function will parse the file, creating a blob object with the whole data, not checking
+    /// the header of the file.
+    pub fn from_bytes_new_blob(bytes: &[u8]) -> Self {
+        Object::Blob { data: bytes.into() }
+    }
 }
 
 impl std::fmt::Display for Object {
@@ -82,17 +103,19 @@ impl Byteable for Object {
         }
     }
 
+    /// Given a sequence of bytes, tries to read an object header:
+    /// - If the header is present, the file would be parsed as the type present in the header.
+    /// - If there is no header present, the function will return an error.
+    ///
+    /// If you want to just read the data as a blob object, use `from_bytes_new_blob`.
+    ///
+    /// # Errors
+    ///
+    /// This function would generally fail from parsing errors or from the bytes not having a valid
+    /// header.
     fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        // Getting object type
-        let mut kind_buffer = Vec::new();
-        Cursor::new(bytes)
-            .read_until(b' ', &mut kind_buffer)
-            .context("could not read object header")?;
-        kind_buffer
-            .pop()
-            .context("expected space after object type")?;
+        let kind = Object::read_header(bytes).context("could not read file header")?;
 
-        let kind = String::from_utf8_lossy(&kind_buffer);
         match kind.as_ref() {
             Object::BLOB_STRING => blob::from_bytes(bytes),
             Object::TREE_STRING => tree::from_bytes(bytes),

@@ -88,7 +88,8 @@ pub fn read_object(hash: Hash) -> Result<Object> {
     Object::from_bytes(&decompressed).context("could not create object from file bytes")
 }
 
-/// Converts the files in the given paths to their `ExtendedObject` representation.
+/// Reads all the given paths, reading the file and converting it to a `ObjectExt` object, which
+/// stores an object's path.
 ///
 /// This function will call itself recursively if a path is from a directory.
 ///
@@ -98,12 +99,12 @@ pub fn read_object(hash: Hash) -> Result<Object> {
 pub fn as_blob_objects(paths: Vec<PathBuf>) -> Result<Vec<BlobExt>> {
     let mut objects = Vec::with_capacity(paths.len());
     let mut dirs: Vec<PathBuf> = Vec::new();
-    for p in paths {
-        if p.is_dir() {
-            dirs.push(p);
+    for path in paths {
+        if path.is_dir() {
+            dirs.push(path);
             continue;
         }
-        objects.push(as_blob_object(p).context("could not create object")?);
+        objects.push(BlobExt::from_file(path).context("could not read file as an object")?);
     }
 
     // Calling recursively for every directory
@@ -122,15 +123,3 @@ pub fn as_blob_objects(paths: Vec<PathBuf>) -> Result<Vec<BlobExt>> {
     Ok(objects)
 }
 
-/// Converts a file in a path to its blob object representation.
-///
-/// # Errors
-///
-/// This function will fail if the file could not be read.
-pub fn as_blob_object(path: PathBuf) -> Result<BlobExt> {
-    let bytes = fs::read(&path).context(format!("could not read file: {:?}", &path))?;
-    Ok(BlobExt {
-        blob: Object::Blob { data: bytes.into() },
-        path,
-    })
-}

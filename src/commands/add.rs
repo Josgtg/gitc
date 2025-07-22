@@ -21,7 +21,7 @@ pub fn add(files: &[OsString]) -> Result<String> {
         return Ok("There were no files to add".into());
     }
 
-    let root_path = Constants::repository_folder_path();
+    let root_path = Constants::working_tree_root_path();
 
     let paths: Vec<PathBuf> = if files
         // checking for "add all" pattern
