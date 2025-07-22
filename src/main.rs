@@ -18,11 +18,7 @@ fn main() {
     let args = args::Args::parse();
 
     match commands::execute_command(&args.command) {
-        Ok(message) => {
-            if !message.is_empty() {
-                println!("{}", message)
-            }
-        }
+        Ok(message) => print!("{}", message),
         Err(error) => eprintln!("{:?}", error),
     }
 }

@@ -26,8 +26,13 @@ pub struct TreeEntry {
 impl Display for TreeEntry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
-            "{}\t{}\t{}",
+            "{}\t{}\t{}\t{}",
             self.mode,
+           if self.path.is_dir() {
+                Object::TREE_STRING
+            } else {
+                Object::BLOB_STRING
+            },
             self.hash,
             self.path.to_string_lossy(),
         ))
@@ -140,10 +145,8 @@ pub fn display(entries: &[TreeEntry]) -> String {
         s.push_str(&e.to_string());
         s.push('\n');
     }
-    s.pop(); // removing trailing newline
     s
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -356,10 +359,7 @@ mod tests {
         let result = from_bytes(input);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("expected"));
+        assert!(result.unwrap_err().to_string().contains("expected"));
     }
 
     #[test]
@@ -368,10 +368,7 @@ mod tests {
         let result = from_bytes(input);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("expected"));
+        assert!(result.unwrap_err().to_string().contains("expected"));
     }
 
     #[test]
@@ -407,10 +404,7 @@ mod tests {
         let result = from_bytes(input);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("expected"));
+        assert!(result.unwrap_err().to_string().contains("expected"));
     }
 
     #[test]
@@ -419,10 +413,7 @@ mod tests {
         let result = from_bytes(input);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("expected"));
+        assert!(result.unwrap_err().to_string().contains("expected"));
     }
 
     #[test]

@@ -21,7 +21,7 @@ pub fn init(folder_name: Option<&OsStr>) -> Result<String> {
     };
 
     if fs::exists(&path).context("could not verify folder existance when initializing")? {
-        return Ok("The directory is already a git repository".into());
+        return Ok("The directory is already a git repository\n".into());
     }
 
     // creating directory if it didn't exist
@@ -42,5 +42,5 @@ pub fn init(folder_name: Option<&OsStr>) -> Result<String> {
     fs::write(Constants::head_path(), Constants::DEFAULT_HEAD)
         .context("could not write to HEAD when initializing")?;
 
-    Ok("Created new git repository".into())
+    Ok("Created new git repository\n".into())
 }

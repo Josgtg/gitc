@@ -56,6 +56,11 @@ impl IndexEntry {
         self.path.as_ref()
     }
 
+    /// Returns the path for this index entry, consuming it.
+    pub fn into_path(self) -> PathBuf {
+        self.path
+    }
+
     /// Tries to build an index entry from the file at `path` and the hash of the blob object for said file.
     ///
     /// # Errors

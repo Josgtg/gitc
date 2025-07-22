@@ -17,7 +17,7 @@ const PATTERN_EVERY_FILE: &str = ".";
 /// creates index entries from those objects and adds them to the index file.
 pub fn add(files: &[OsString]) -> Result<String> {
     if files.is_empty() {
-        return Ok("There were no files to add".into());
+        return Ok("There were no files to add\n".into());
     }
 
     let root_path = Constants::working_tree_root_path();
@@ -58,7 +58,9 @@ pub fn add(files: &[OsString]) -> Result<String> {
         hash = Hash::compute(bytes.as_ref());
 
         if paths_already_in_index.contains(&path) {
-            // file already in index
+            // file already in index, we delete it since we won't be needing it and it would be
+            // useful later (paths left at the end are deleted files)
+            paths_already_in_index.remove(&path);
             if !hashes_already_in_index.contains(&hash) {
                 // ...and has been modified. We remove it and add it as if it was a new file
                 index_builder.remove_index_entry_by_path(&path);
@@ -78,9 +80,13 @@ pub fn add(files: &[OsString]) -> Result<String> {
         index_builder.add_index_entry(index_entry);
     }
 
+    for p in paths_already_in_index {
+        index_builder.remove_index_entry_by_path(&p);
+    }
+
     let index = index_builder.build();
 
     fs::index::write_index_file(index).context("could not write to index file")?;
 
-    Ok("Added files successfully".into())
+    Ok("Added files successfully\n".into())
 }

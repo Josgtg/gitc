@@ -245,10 +245,8 @@ pub fn display(
     commiter: &CommitUser,
     message: &str,
 ) -> String {
-    let mut s = format_data(tree, parents, author, commiter, message)
-        .unwrap_or(String::from("commit could not be formatted"));
-    s.pop(); // removing trailing newline
-    s
+    format_data(tree, parents, author, commiter, message)
+        .unwrap_or(String::from("commit could not be formatted\n"))
 }
 
 // Tests

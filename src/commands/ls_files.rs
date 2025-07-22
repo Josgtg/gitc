@@ -19,7 +19,7 @@ pub fn ls_files(debug: bool) -> Result<String> {
         }
         formatted.push('\n');
     }
-    formatted.pop();
+
     if debug {
         formatted.pop();
     } // removing extra new line

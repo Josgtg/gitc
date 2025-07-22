@@ -51,5 +51,5 @@ pub fn commit(message: &str) -> Result<String> {
     std::fs::write(current_branch, commit_hash.to_string().as_bytes())
         .context("could not update current branch (make it point to the new commit))")?;
 
-    Ok("Commited changes successfully".into())
+    Ok("Commited changes successfully\n".into())
 }

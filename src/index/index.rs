@@ -1,6 +1,7 @@
 use std::io::{Cursor, Read, Write};
 use std::rc::Rc;
 use std::slice::Iter;
+use std::vec::IntoIter;
 
 use anyhow::{Context, Result, bail};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
@@ -20,6 +21,10 @@ pub struct Index {
 }
 
 impl Index {
+    pub fn into_entries(self) -> IntoIter<IndexEntry> {
+        self.entries.into_iter()
+    }
+
     /// Returns an iterator over the entries of this index.
     pub fn entries(&self) -> Iter<IndexEntry> {
         self.entries.iter()

@@ -10,6 +10,7 @@ impl Constants {
     pub const INDEX_NAME: &str = "index";
     pub const HEAD_HEADER: &str = "ref: ";
     pub const DEFAULT_HEAD: &str = "ref: refs/heads/main";
+    pub const DEFAULT_BRANCH_NAME: &str = "main";
     pub const HEAD_NAME: &str = "HEAD";
     pub const INDEX_VERSION_NUMBER: u32 = 2;
     pub const INDEX_HEADER_BINARY: u32 = u32::from_be_bytes(*b"DIRC");
