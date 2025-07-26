@@ -12,7 +12,7 @@ use crate::hashing::Hash;
 
 use super::{ExtensionEntry, IndexEntry, builder::IndexBuilder};
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Index {
     pub(super) version_number: u32,
     pub(super) entries_number: u32,
