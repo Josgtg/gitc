@@ -5,6 +5,7 @@ use std::rc::Rc;
 use anyhow::{bail, Context, Result};
 use colored::Colorize;
 
+use crate::byteable::Byteable;
 use crate::error::WarnUnwrap;
 use crate::fs;
 use crate::hashing::Hash;
@@ -71,6 +72,20 @@ fn determine_statuses(
     mut index_data: IndexData,
     working_tree_data: Vec<FileData>,
 ) -> Vec<FileWithStatus> {
+    fn hash_if_not_computed(file_hash: &mut Hash, file_data: &[u8], hash_computed: &mut bool) -> Result<()> {
+        if *hash_computed {
+            return Ok(())
+        }
+
+        let blob = Object::from_bytes_new_blob(file_data);
+        let bytes = blob.as_bytes().context("could not encode as blob object")?;
+
+        *hash_computed = true;
+        *file_hash = Hash::compute(&bytes);
+
+        Ok(())
+    }
+    
     let mut file_statuses = Vec::new();
 
     // Used to determine at the end if a file was new or it was the new name of a previous file
@@ -103,10 +118,7 @@ fn determine_statuses(
             } else {
                 // If checking with cache is not successful, we hash the file data and run the
                 // checks with the hash
-                if !hash_computed {
-                    file_hash = Hash::compute(&file_data);
-                    hash_computed = true;
-                }
+                let _ = hash_if_not_computed(&mut file_hash, &file_data, &mut hash_computed).warn_unwrap();
                 if index_specific_data.hash == file_hash {
                     // Index contains path and hash, so this file is being tracked in it's current
                     // state
@@ -128,12 +140,9 @@ fn determine_statuses(
                 // are stored in the index in it's current version, otherwise we could be checking
                 // for an older version of a file
                 Status::Unchanged
-            } else if stage_status != StageStatus::Untracked {
-                // If the file is tracked, we can compare it with the previous commit
-                if !hash_computed {
-                    file_hash = Hash::compute(&file_data);
-                    hash_computed = true;
-                }
+            } else {
+                // Otherwise, we compare the file in the working tree, with the previous commit
+                let _ = hash_if_not_computed(&mut file_hash, &file_data, &mut hash_computed).warn_unwrap();
                 if commit_specific_hash == file_hash {
                     // Same data than previous commit, the file is unchanged
                     Status::Unchanged
@@ -141,18 +150,17 @@ fn determine_statuses(
                     // Different data, the file has been modified
                     Status::Modified
                 }
-            } else {
-                // If a file is untracked, we just say it's new and know nothing about it
-                Status::New
             }
         } else {
-            // File not in previous commit, so this file is new
-            if !hash_computed {
-                file_hash = Hash::compute(&file_data);
-                hash_computed = true;
+            if stage_status == StageStatus::Untracked {
+                // It's new but not tracked so we don't care
+                Status::New
+            } else {
+                // File is new, but it is being tracked so we detail it's status
+                let _ = hash_if_not_computed(&mut file_hash, &file_data, &mut hash_computed).warn_unwrap();
+                possibly_moved_files.insert(file_hash.clone(), (file_path, stage_status));
+                continue;
             }
-            possibly_moved_files.insert(file_hash.clone(), (file_path, stage_status));
-            continue;
         };
 
         // Adding file statuses that are not new, moved or deleted
