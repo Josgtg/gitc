@@ -99,8 +99,6 @@ pub fn add(files: &[OsString]) -> Result<String> {
 
     let index = index_builder.build();
 
-    log::info!("index: {:?}", index);
-
     fs::index::write_index_file(index).context("could not write to index file")?;
 
     Ok("Added files successfully\n".into())

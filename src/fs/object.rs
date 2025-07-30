@@ -1,5 +1,6 @@
 use std::ffi::OsStr;
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
@@ -61,8 +62,14 @@ pub fn write_to_object_dir(bytes: &[u8], hash: &Hash) -> Result<()> {
     fs::create_dir_all(folder_path)?;
 
     let compressed = utils::zlib::compress(bytes).context("could not compress object data")?;
-    fs::write(&file_path, compressed)
-        .context(format!("could not write to object file: {file_path:?}"))?;
+
+    let mut file = std::fs::File::create(&file_path).context("could not create object file")?;
+    let mut permissions = file.metadata().context("could not get file metadata")?.permissions();
+    permissions.set_readonly(true);
+    file.set_permissions(permissions).context("could not set file permissions")?;
+
+    file.write_all(&compressed)
+        .context(format!("could not write to object file: {:?}", file_path))?;
 
     Ok(())
 }
