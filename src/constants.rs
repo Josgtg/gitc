@@ -8,10 +8,9 @@ impl Constants {
     pub const REFS_FOLDER_NAME: &str = "refs";
     pub const HEADS_FOLDER_NAME: &str = "heads";
     pub const INDEX_NAME: &str = "index";
-    pub const HEAD_HEADER: &str = "ref: ";
-    pub const DEFAULT_HEAD: &str = "ref: refs/heads/main";
+    pub const HEAD_CONTENT_HEADER: &str = "ref: ";
     pub const DEFAULT_BRANCH_NAME: &str = "main";
-    pub const HEAD_NAME: &str = "HEAD";
+    pub const HEAD_FILE_NAME: &str = "HEAD";
     pub const INDEX_VERSION_NUMBER: u32 = 2;
     pub const INDEX_HEADER_BINARY: u32 = u32::from_be_bytes(*b"DIRC");
     pub const GITIGNORE_FILE_NAME: &str = ".gitignore";
@@ -48,7 +47,7 @@ impl Constants {
 
     pub fn head_path() -> PathBuf {
         let mut path = Constants::repository_path();
-        path.push(Constants::HEAD_NAME);
+        path.push(Constants::HEAD_FILE_NAME);
         path
     }
 
@@ -56,5 +55,15 @@ impl Constants {
         let mut path = Constants::repository_path();
         path.push(Constants::INDEX_NAME);
         path
+    }
+
+    pub fn default_head_content() -> String {
+        format!(
+            "{}{}{}{}",
+            Constants::HEAD_CONTENT_HEADER,
+            Constants::REFS_FOLDER_NAME,
+            Constants::HEADS_FOLDER_NAME,
+            Constants::DEFAULT_BRANCH_NAME
+        )
     }
 }

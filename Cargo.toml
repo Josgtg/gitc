@@ -8,8 +8,11 @@ anyhow = "1.0.98"
 byteorder = "1.5.0"
 clap = { version = "4.5.40", features = ["derive"] }
 colored = "3.0.0"
+dotenvy = "0.15.7"
+env_logger = "0.11.8"
 flate2 = "1.1.2"
 hex = "0.4.3"
+log = "0.4.27"
 sha1 = "0.10.6"
 time = { version = "0.3.41", default-features = false, features = ["parsing", "formatting", "macros"] }
 

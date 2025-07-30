@@ -2,7 +2,7 @@ use anyhow::{Result, bail};
 use sha1::{Digest, Sha1};
 use std::{fmt::Display, rc::Rc, str::FromStr};
 
-#[derive(Debug, PartialEq, Eq, std::hash::Hash, Clone)]
+#[derive(Default, Debug, PartialEq, Eq, std::hash::Hash, Clone)]
 pub struct Hash(Rc<[u8; 20]>);
 
 pub const HASH_BYTE_LEN: usize = 20;

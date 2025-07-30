@@ -2,3 +2,4 @@
 /session.vim
 /test-repo
 /misc
+.env

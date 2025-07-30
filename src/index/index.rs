@@ -138,7 +138,7 @@ impl Byteable for Index {
                 "index checksum does not correspond with internal data".into(),
             ));
             */
-            eprintln!("index checksum does not correspond with internal data")
+            log::warn!("index checksum does not correspond with internal data")
         }
 
         Ok(index)

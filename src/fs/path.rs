@@ -5,8 +5,8 @@ use std::str::FromStr;
 use anyhow::Context;
 use anyhow::Result;
 
-use crate::Constants;
 use crate::hashing::Hash;
+use crate::Constants;
 
 /// Reads the path stored inside the HEAD file.
 //
@@ -18,7 +18,8 @@ pub fn get_current_branch_path() -> Result<PathBuf> {
     let path_str = String::from_utf8_lossy(&bytes);
 
     let stripped_path_str = path_str
-        .strip_prefix(Constants::HEAD_HEADER)
+        .trim_end()  // Important to remove ending newlines
+        .strip_prefix(Constants::HEAD_CONTENT_HEADER)
         .context("HEAD file had an incorrect header")?;
 
     let relative_path = PathBuf::from(stripped_path_str);
@@ -36,14 +37,15 @@ pub fn get_current_branch_path() -> Result<PathBuf> {
 /// `None` if there were no commits yet.
 pub fn get_last_commit_hash() -> Result<Option<Hash>> {
     let path = get_current_branch_path().context("could not get current branch path")?;
+
     if !path.exists() {
-        return Ok(None)
+        return Ok(None);
     }
 
     let bytes = std::fs::read(path).context("could not read current branch")?;
     let str = std::str::from_utf8(&bytes).context("could not read current branch as a string")?;
 
-    let hash = Hash::from_str(str).context("could not create a hash from the data read")?;
+    let hash = Hash::from_str(str.trim()).context("could not create a hash from the data read")?;
 
     Ok(Some(hash))
 }

@@ -11,3 +11,4 @@ pub use extension_entry::ExtensionEntry;
 pub use file_stage::FileStage;
 pub use index::Index;
 pub use index_entry::IndexEntry;
+pub use index_entry::IndexEntryCache;

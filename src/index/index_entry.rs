@@ -1,6 +1,6 @@
 use std::ffi::OsString;
 use std::fmt::{Debug, Display};
-use std::fs::File;
+use std::fs::{File, Metadata};
 use std::io::{BufRead, Cursor, Read, Write};
 use std::os::unix::{ffi::OsStringExt, fs::MetadataExt};
 use std::path::{Path, PathBuf};
@@ -10,6 +10,7 @@ use std::time::UNIX_EPOCH;
 use anyhow::{Context, Result, bail};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
+use crate::error::WarnUnwrap;
 use crate::Constants;
 use crate::byteable::Byteable;
 use crate::hashing::Hash;
@@ -17,8 +18,10 @@ use crate::utils::path::relative_path;
 
 use super::FileStage;
 
-#[derive(Default)]
-pub struct FileMetadata {
+/// Represents the fields in a file that describe additional information for it but are not
+/// strictly needed.
+#[derive(Debug, Default, std::hash::Hash, PartialEq, Eq, Clone)]
+pub struct IndexEntryCache {
     pub creation_time_sec: u32,
     pub creation_time_nsec: u32,
     pub modification_time_sec: u32,
@@ -30,11 +33,47 @@ pub struct FileMetadata {
     pub file_size: u32,
 }
 
+impl IndexEntryCache {
+
+    /// Returns `true` if the fields `modification_time_sec`, `modification_time_nsec` and
+    /// `file_size` are equal between the two structs.
+    pub fn matches_loose(&self, other: &IndexEntryCache) -> bool {
+        self.modification_time_sec == other.modification_time_sec && 
+        self.modification_time_nsec == other.modification_time_nsec &&
+        self.file_size == other.file_size
+    }
+}
+
+impl TryFrom<Metadata> for IndexEntryCache {
+    type Error = anyhow::Error;
+
+    fn try_from(metadata: Metadata) -> Result<Self> {
+        Ok(Self {
+            creation_time_sec: metadata.created()?.duration_since(UNIX_EPOCH)?.as_secs() as u32,
+            creation_time_nsec: metadata
+                .created()?
+                .duration_since(UNIX_EPOCH)?
+                .subsec_nanos(),
+            modification_time_sec: metadata.modified()?.duration_since(UNIX_EPOCH)?.as_secs()
+                as u32,
+            modification_time_nsec: metadata
+                .modified()?
+                .duration_since(UNIX_EPOCH)?
+                .subsec_nanos(),
+            device: metadata.dev() as u32,
+            inode: metadata.ino() as u32,
+            uid: metadata.uid(),
+            gid: metadata.gid(),
+            file_size: metadata.size() as u32,
+        })
+    }
+}
+
 /// Represents an entry for a file in the git index. It contains all the information needed to
 /// recreate a file.
 pub struct IndexEntry {
     pub mode: u32,
-    pub metadata: FileMetadata,
+    pub cache_data: IndexEntryCache,
     /// hash the object this file index entry represents
     object_hash: Hash,
     /// state, path length
@@ -80,24 +119,7 @@ impl IndexEntry {
             .context("could not get file metadata when encoding index entry")?;
         Ok(IndexEntry {
             mode: metadata.mode(),
-            metadata: FileMetadata {
-                creation_time_sec: metadata.created()?.duration_since(UNIX_EPOCH)?.as_secs() as u32,
-                creation_time_nsec: metadata
-                    .created()?
-                    .duration_since(UNIX_EPOCH)?
-                    .subsec_nanos(),
-                modification_time_sec: metadata.modified()?.duration_since(UNIX_EPOCH)?.as_secs()
-                    as u32,
-                modification_time_nsec: metadata
-                    .modified()?
-                    .duration_since(UNIX_EPOCH)?
-                    .subsec_nanos(),
-                device: metadata.dev() as u32,
-                inode: metadata.ino() as u32,
-                uid: metadata.uid(),
-                gid: metadata.gid(),
-                file_size: metadata.size() as u32,
-            },
+            cache_data: IndexEntryCache::try_from(metadata).warn_unwrap(),
             object_hash,
             flags: IndexEntry::default_flags(file_path.as_os_str().len()),
             path: relative_path(file_path, &Constants::working_tree_root_path())
@@ -169,34 +191,34 @@ impl Byteable for IndexEntry {
         let mut cursor = Cursor::new(bytes);
 
         cursor
-            .write_u32::<BigEndian>(self.metadata.creation_time_sec)
+            .write_u32::<BigEndian>(self.cache_data.creation_time_sec)
             .context("could not write creation_time_sec when encoding index entry")?;
         cursor
-            .write_u32::<BigEndian>(self.metadata.creation_time_nsec)
+            .write_u32::<BigEndian>(self.cache_data.creation_time_nsec)
             .context("could not write creation_time_nsec when encoding index entry")?;
         cursor
-            .write_u32::<BigEndian>(self.metadata.modification_time_sec)
+            .write_u32::<BigEndian>(self.cache_data.modification_time_sec)
             .context("could not write modification_time_sec when encoding index entry")?;
         cursor
-            .write_u32::<BigEndian>(self.metadata.modification_time_nsec)
+            .write_u32::<BigEndian>(self.cache_data.modification_time_nsec)
             .context("could not write modification_time_nsec when encoding index entry")?;
         cursor
-            .write_u32::<BigEndian>(self.metadata.device)
+            .write_u32::<BigEndian>(self.cache_data.device)
             .context("could not write device when encoding index entry")?;
         cursor
-            .write_u32::<BigEndian>(self.metadata.inode)
+            .write_u32::<BigEndian>(self.cache_data.inode)
             .context("could not write inode when encoding index entry")?;
         cursor
             .write_u32::<BigEndian>(self.mode)
             .context("could not write mode when encoding index entry")?;
         cursor
-            .write_u32::<BigEndian>(self.metadata.uid)
+            .write_u32::<BigEndian>(self.cache_data.uid)
             .context("could not write uid when encoding index entry")?;
         cursor
-            .write_u32::<BigEndian>(self.metadata.gid)
+            .write_u32::<BigEndian>(self.cache_data.gid)
             .context("could not write gid when encoding index entry")?;
         cursor
-            .write_u32::<BigEndian>(self.metadata.file_size)
+            .write_u32::<BigEndian>(self.cache_data.file_size)
             .context("could not write file_size when encoding index entry")?;
 
         cursor
@@ -265,7 +287,7 @@ impl Byteable for IndexEntry {
         let entry = IndexEntry {
             mode,
 
-            metadata: FileMetadata {
+            cache_data: IndexEntryCache {
                 creation_time_sec,
                 creation_time_nsec,
                 modification_time_sec,
@@ -337,16 +359,16 @@ impl Debug for IndexEntry {
             flags: {}",
             self.path().to_string_lossy(),
             self.object_hash,
-            self.metadata.creation_time_sec,
-            self.metadata.creation_time_nsec,
-            self.metadata.modification_time_sec,
-            self.metadata.modification_time_nsec,
-            self.metadata.device,
-            self.metadata.inode,
+            self.cache_data.creation_time_sec,
+            self.cache_data.creation_time_nsec,
+            self.cache_data.modification_time_sec,
+            self.cache_data.modification_time_nsec,
+            self.cache_data.device,
+            self.cache_data.inode,
             self.mode,
-            self.metadata.uid,
-            self.metadata.gid,
-            self.metadata.file_size,
+            self.cache_data.uid,
+            self.cache_data.gid,
+            self.cache_data.file_size,
             self.get_stage() as u16,
         );
 

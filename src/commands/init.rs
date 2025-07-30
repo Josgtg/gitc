@@ -39,7 +39,7 @@ pub fn init(folder_name: Option<&OsStr>) -> Result<String> {
     }
 
     // creating default head file
-    fs::write(Constants::head_path(), Constants::DEFAULT_HEAD)
+    fs::write(Constants::head_path(), Constants::default_head_content())
         .context("could not write to HEAD when initializing")?;
 
     Ok("Created new git repository\n".into())

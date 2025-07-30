@@ -27,7 +27,16 @@ impl BlobExt {
             blob: Object::from_bytes_new_blob(&data),
             path,
         })
-    } 
+    }
+
+    /// Returns the data stored inside the inner blob object
+    pub fn data(self) -> Rc<[u8]> {
+        if let Object::Blob { data } = self.blob {
+            data
+        } else {
+            panic!("BlobExt did not store a blob")
+        }
+    }
 }
 
 /// Returns the encoded version of the bytes of a blob object, following the next format:
