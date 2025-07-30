@@ -6,7 +6,7 @@ pub fn ls_files(debug: bool) -> Result<String> {
     let index = fs::index::read_index_file().context("could not read from index file")?;
 
     if index.entries().count() == 0 {
-        return Ok(String::new());
+        return Ok("There were no files to list\n".into());
     }
 
     let mut formatted = String::new();

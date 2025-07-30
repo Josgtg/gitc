@@ -24,6 +24,7 @@ pub enum Command {
     /// Creates a new blob and updates index
     Add {
         /// Files to be staged for the next commit
+        #[arg(required = true)]
         files: Vec<OsString>,
     },
     /// Unstages files or resets to a previous commit, if no file is specified, all files are unstaged

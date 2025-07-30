@@ -15,12 +15,11 @@ mod utils;
 pub use constants::*;
 
 fn main() {
-    #[cfg(debug_assertions)] {
-        env_logger::init();
-    }
+    let _ = dotenvy::dotenv();
+    env_logger::init();
 
     use clap::Parser;
-    let args = args::Args::parse();
+    let args = args::Args::parse_from(wild::args());
 
     match commands::execute_command(&args.command) {
         Ok(message) => print!("{}", message),

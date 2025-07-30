@@ -33,10 +33,13 @@ pub fn reset(command: Option<&ResetCommand>) -> Result<String> {
     }
 }
 
+
+#[allow(unused)]
 fn reset_files(files: &[OsString]) -> Result<String> {
     Ok("files have been reset".into())
 }
 
+#[allow(unused)]
 fn reset_to_commit(hard: bool, commit_hash: Hash) -> Result<String> {
     Ok(format!("reset to commit {}", commit_hash))
 }

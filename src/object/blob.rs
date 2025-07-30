@@ -22,7 +22,7 @@ impl BlobExt {
     ///
     /// This function will fail if the `path` could not be read from.
     pub fn from_file(path: PathBuf) -> Result<Self> {
-        let data = std::fs::read(&path).context("could not read file")?;
+        let data = std::fs::read(&path).context(format!("could not read file: {:?}", path))?;
         Ok(BlobExt {
             blob: Object::from_bytes_new_blob(&data),
             path,

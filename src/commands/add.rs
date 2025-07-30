@@ -16,17 +16,18 @@ const PATTERN_EVERY_FILE: &str = ".";
 /// Fetches all files from the worktree (not in .gitignore), creates blob objects for all of them,
 /// creates index entries from those objects and adds them to the index file.
 pub fn add(files: &[OsString]) -> Result<String> {
-    if files.is_empty() {
-        return Ok("There were no files to add\n".into());
-    }
-
     let root_path = Constants::working_tree_root_path();
 
     let filtered_paths: Vec<PathBuf> = if files[0] == PATTERN_EVERY_FILE {
         fs::read_not_ignored_paths(&root_path).context("could not filter ignored files")?
     } else {
+        // We do not check if a file is in .gitignore if it's deliberately added
         files.iter().map(PathBuf::from).collect()
     };
+
+    if filtered_paths.is_empty() {
+        return Ok("There were no files to add\n".into())
+    }
 
     // reading all (not ignored) files as blob objects
     let objects = fs::object::as_blob_objects(filtered_paths).context("could not get objects")?;
