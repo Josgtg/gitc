@@ -6,15 +6,16 @@ use std::rc::Rc;
 use anyhow::{Context, Result};
 
 use crate::byteable::Byteable;
-use crate::fs;
+use crate::{fs, utils};
 use crate::hashing::Hash;
 use crate::index::{builder::IndexBuilder, IndexEntry};
 use crate::Constants;
 
 const PATTERN_EVERY_FILE: &str = ".";
 
-/// Fetches all files from the worktree (not in .gitignore), creates blob objects for all of them,
-/// creates index entries from those objects and adds them to the index file.
+/// Fetches all files from the worktree (not in .gitignore unless explicitly added),
+/// creates blob objects for all of them, creates index entries from those objects
+/// and adds them to the index file.
 pub fn add(files: &[OsString]) -> Result<String> {
     let root_path = Constants::working_tree_root_path();
 
@@ -22,14 +23,25 @@ pub fn add(files: &[OsString]) -> Result<String> {
         fs::read_not_ignored_paths(&root_path).context("could not filter ignored files")?
     } else {
         // We do not check if a file is in .gitignore if it's deliberately added
-        files.iter().map(PathBuf::from).collect()
+        let mut filtered_paths = Vec::new();
+
+        let mut canonical: PathBuf;
+        let mut relative: PathBuf;
+        for f in files {
+            // normalizing all paths
+            canonical = PathBuf::from(f).canonicalize().context("could not canonicalize path")?;
+            relative = utils::path::relative_path(&canonical, &root_path).unwrap_or(canonical);
+            filtered_paths.push(relative);
+        }
+
+        filtered_paths
     };
 
     if filtered_paths.is_empty() {
         return Ok("There were no files to add\n".into())
     }
 
-    // reading all (not ignored) files as blob objects
+    // reading all files as blob objects
     let objects = fs::object::as_blob_objects(filtered_paths).context("could not get objects")?;
 
     // getting previous index to update it
@@ -86,6 +98,8 @@ pub fn add(files: &[OsString]) -> Result<String> {
     }
 
     let index = index_builder.build();
+
+    log::info!("index: {:?}", index);
 
     fs::index::write_index_file(index).context("could not write to index file")?;
 

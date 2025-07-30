@@ -1,5 +1,4 @@
 use std::fmt::Debug;
-use log::warn;
 
 pub trait WarnUnwrap<T> {
     fn warn_unwrap(self) -> T;
@@ -12,7 +11,7 @@ impl<T: Default, E: Debug> WarnUnwrap<T> for Result<T, E> {
         match self {
             Ok(value) => value,
             Err(error) => {
-                warn!("{:?}", error);
+                log::warn!("{:?}", error);
                 T::default()
             }
         }

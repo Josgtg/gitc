@@ -59,7 +59,7 @@ impl Constants {
 
     pub fn default_head_content() -> String {
         format!(
-            "{}{}{}{}",
+            "{}{}/{}/{}",
             Constants::HEAD_CONTENT_HEADER,
             Constants::REFS_FOLDER_NAME,
             Constants::HEADS_FOLDER_NAME,
