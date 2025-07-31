@@ -110,7 +110,6 @@ fn determine_statuses(
     let mut status: Status;
     let mut stage_status: StageStatus;
     let mut index_hash: Hash = Hash::default();
-    let mut index_cache: IndexEntryCache;
     for FileData {
         path: file_path,
         reader: mut file_reader,
@@ -123,9 +122,7 @@ fn determine_statuses(
         // keep track of the files that appear on the index but not in the working tree, since the
         // files left at the end of the loop are only in the index. Same with `commit_data::remove`
         // below.
-        stage_status = if let Some(isd) = index_data.remove(&file_path) {
-            index_hash = isd.0;
-            index_cache = isd.1;
+        stage_status = if let Some((index_hash, index_cache)) = index_data.remove(&file_path) {
             // Path in index
             if index_cache.matches_loose(&file_cache) {
                 // And metadata shows it's unchanged; we have the current version of the file
@@ -249,8 +246,10 @@ fn determine_statuses(
 }
 
 fn read_working_tree_data() -> Result<Vec<FileData>> {
-    let all_files = fs::read_not_ignored_paths(&Constants::working_tree_root_path())
-        .context("could not get files in working tree")?;
+    let filtered_paths = fs::read_not_ignored_paths(&Constants::working_tree_root_path())
+        .context("could not filter ignored paths in working tree")?;
+
+    let all_files = fs::path::expand_dirs_from_list(filtered_paths).context("could not get files in working tree")?;
 
     // Getting data  from working tree
     let working_tree = fs::path::read_bufered(all_files)

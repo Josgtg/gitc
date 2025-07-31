@@ -25,6 +25,37 @@ pub fn read_all_dir_paths(path: &Path) -> Result<Vec<PathBuf>> {
     Ok(paths)
 }
 
+/// Given a list of paths, it expands the paths that are directories into the paths inside of them,
+/// removing the directories.
+///
+/// # Example
+///
+/// ```rust
+/// let paths = vec!["dir", "file.txt"].map(PathBuf::from).collect();
+///
+/// let expanded = get_all_files_from_list(paths).unwrap();
+///
+/// /// The "dir" directory contains two files inside: "a" and "b".
+///
+/// assert!(expanded.contains(PathBuf::from("dir/a")));
+/// assert!(expanded.contains(PathBuf::from("dir/b")));
+/// assert!(!expanded.contains(PathBuf::from("dir")));
+/// ```
+pub fn expand_dirs_from_list(paths: Vec<PathBuf>) -> Result<Vec<PathBuf>> {
+    let mut sub: Vec<PathBuf>;
+    let mut expanded: Vec<PathBuf> = Vec::new();
+    for path in paths {
+        if path.is_dir() {
+            sub =
+                read_all_dir_paths(&path).context(format!("could not get {:?} subpaths", path))?;
+            expanded.extend(expand_dirs_from_list(sub)?);
+        } else {
+            expanded.push(path);
+        }
+    }
+    Ok(expanded)
+}
+
 /// Struct that represents a file which content is buffered.
 ///
 /// It's use is to not load bytes into memory when reading, for example, a blob object in a normal
