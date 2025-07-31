@@ -1,54 +1,12 @@
+use std::fs::File;
+use std::io::BufReader;
 use std::path::Path;
 use std::path::PathBuf;
-use std::str::FromStr;
 
-use anyhow::Context;
-use anyhow::Result;
+use anyhow::{Context, Result};
 
-use crate::hashing::Hash;
-use crate::Constants;
-
-/// Reads the path stored inside the HEAD file.
-//
-/// # Errors
-///
-/// This function will fail if the HEAD file could not be opened or read from.
-pub fn get_current_branch_path() -> Result<PathBuf> {
-    let bytes = std::fs::read(Constants::head_path()).context("could not read from HEAD file")?;
-    let path_str = String::from_utf8_lossy(&bytes);
-
-    let stripped_path_str = path_str
-        .trim_end()  // Important to remove ending newlines
-        .strip_prefix(Constants::HEAD_CONTENT_HEADER)
-        .context("HEAD file had an incorrect header")?;
-
-    let relative_path = PathBuf::from(stripped_path_str);
-
-    Ok(Constants::repository_path().join(relative_path))
-}
-
-/// Returns the hash of the last commit on the current branch. More specifically, the hash inside
-/// the file HEAD points to.
-///
-/// # Returns
-///
-/// This function returns a Result of an option of a Hash. The result might be `Err` if it was not
-/// possible to read from the file or get the path HEAD pointed to, while the Option inside might be
-/// `None` if there were no commits yet.
-pub fn get_last_commit_hash() -> Result<Option<Hash>> {
-    let path = get_current_branch_path().context("could not get current branch path")?;
-
-    if !path.exists() {
-        return Ok(None);
-    }
-
-    let bytes = std::fs::read(path).context("could not read current branch")?;
-    let str = std::str::from_utf8(&bytes).context("could not read current branch as a string")?;
-
-    let hash = Hash::from_str(str.trim()).context("could not create a hash from the data read")?;
-
-    Ok(Some(hash))
-}
+use crate::error::WarnUnwrap;
+use crate::index::IndexEntryCache;
 
 /// Returns all the paths of the files and subdirectories inside of `dir`.
 ///
@@ -58,13 +16,59 @@ pub fn get_last_commit_hash() -> Result<Option<Hash>> {
 /// `dir` did not exist.
 /// `dir` was not a directory.
 /// Could not get the files inside of `dir`.
-pub fn read_dir_paths(path: &Path) -> Result<Vec<PathBuf>> {
+pub fn read_all_dir_paths(path: &Path) -> Result<Vec<PathBuf>> {
     let mut paths = Vec::new();
     let entries = std::fs::read_dir(path).context("could not get directory entries")?;
     for e in entries {
         paths.push(e?.path());
     }
     Ok(paths)
+}
+
+/// Struct that represents a file which content is buffered.
+///
+/// It's use is to not load bytes into memory when reading, for example, a blob object in a normal
+/// way but only when needed.
+pub struct BuferedFile {
+    pub path: PathBuf,
+    pub reader: BufReader<File>,
+    pub cache: IndexEntryCache,
+}
+impl BuferedFile {
+    /// Attempts to open a file and assign a `BufReader` to it.
+    ///
+    /// If the cache of a file could not be obtained, it is just assigned as the default
+    /// `IndexEntryCache` value.
+    pub fn try_from_path(path: PathBuf) -> Result<Self> {
+        let file = std::fs::File::open(&path).context(format!("could not open file {:?}", path))?;
+        let metadata = file.metadata().context(format!("could not get file metadata {:?}", path));
+        Ok(Self {
+            path,
+            reader: BufReader::new(file),
+            cache: match metadata {
+                Ok(m) => IndexEntryCache::try_from(m).warn_unwrap(),
+                Err(e) => {
+                    log::warn!("{:?}", e);
+                    IndexEntryCache::default()
+                }
+            }
+        })
+    }
+}
+
+/// Goes through `files`, trying to open the file and returning a `BuferedFile` value for each one.
+///
+/// Use this function if you plan on iterating over a large amount of files and you don't really
+/// need to store their content.
+pub fn read_bufered(files: Vec<PathBuf>) -> Result<Vec<BuferedFile>> {
+    let mut bufered = Vec::with_capacity(files.len());
+    for p in files {
+        bufered.push(
+            BuferedFile::try_from_path(p).context("could not create bufered file")?
+        );
+    }
+
+    Ok(bufered)
 }
 
 /// Returns the files in `path` that are not inside a .gitignore file in the same directory.
@@ -74,9 +78,10 @@ pub fn read_dir_paths(path: &Path) -> Result<Vec<PathBuf>> {
 /// This function can fail if it couldn't get the files inside `path` or could not filter from the
 /// gitignore.
 pub fn read_not_ignored_paths(path: &Path) -> Result<Vec<PathBuf>> {
-    let all_paths = read_dir_paths(path).context("could not read root directory entries")?;
+    let all_paths = read_all_dir_paths(path).context("could not read root directory entries")?;
     crate::gitignore::not_in_gitignore(path, all_paths)
 }
+
 
 // Tests
 

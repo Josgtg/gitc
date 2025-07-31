@@ -8,7 +8,6 @@ use anyhow::{Context, Result};
 use crate::byteable::Byteable;
 use crate::hashing::Hash;
 use crate::object::Object;
-use crate::object::blob::BlobExt;
 use crate::{Constants, utils};
 
 /// Given an object, gets it's serialized representation and hash, and writes it to the object
@@ -95,7 +94,7 @@ pub fn read_object(hash: Hash) -> Result<Object> {
     Object::from_bytes(&decompressed).context("could not create object from file bytes")
 }
 
-/// Reads all the given paths, reading the file and converting it to a `ObjectExt` object, which
+/// Reads all the given paths, reading the file and converting it to a `BufBlob` object, which
 /// stores an object's path.
 ///
 /// This function will call itself recursively if a path is from a directory.
@@ -103,30 +102,32 @@ pub fn read_object(hash: Hash) -> Result<Object> {
 /// # Errors
 ///
 /// This function can fail if there was an error while reading a file or when creating the object.
-pub fn as_blob_objects(paths: Vec<PathBuf>) -> Result<Vec<BlobExt>> {
+#[allow(unused)]
+pub fn as_objects(paths: Vec<PathBuf>) -> Result<Vec<Object>> {
     let mut objects = Vec::with_capacity(paths.len());
     let mut dirs: Vec<PathBuf> = Vec::new();
+    let mut bytes: Vec<u8>;
     for path in paths {
         if path.is_dir() {
             dirs.push(path);
             continue;
         }
-        objects.push(BlobExt::from_file(path).context("could not read file as an object")?);
+        bytes = std::fs::read(&path).context(format!("could not read file {:?}", path))?;
+        objects.push(Object::from_bytes_new_blob(&bytes));
     }
 
     // Calling recursively for every directory
     let mut subdirs: Vec<PathBuf>;
     for d in dirs {
-        subdirs = super::path::read_dir_paths(&d).context(format!(
+        subdirs = super::path::read_all_dir_paths(&d).context(format!(
             "could not read subdirecories for directory: {:?}",
             d
         ))?;
         objects.extend(
-            as_blob_objects(subdirs)
+            as_objects(subdirs)
                 .context(format!("could not get objects from directory: {:?}", d))?,
         );
     }
 
     Ok(objects)
 }
-

@@ -1,5 +1,4 @@
 use std::io::{Cursor, Read};
-use std::path::PathBuf;
 use std::rc::Rc;
 
 use anyhow::{bail, Context, Result, anyhow};
@@ -7,37 +6,6 @@ use anyhow::{bail, Context, Result, anyhow};
 use crate::utils::cursor::EasyRead;
 
 use super::*;
-
-/// Represents an object with some extra information, like the path.
-#[derive(Debug)]
-pub struct BlobExt {
-    pub blob: Object,
-    pub path: PathBuf,
-}
-
-impl BlobExt {
-    /// Reads the data from a file in `path` and returns a blob object containing said data.
-    ///
-    /// # Errors
-    ///
-    /// This function will fail if the `path` could not be read from.
-    pub fn from_file(path: PathBuf) -> Result<Self> {
-        let data = std::fs::read(&path).context(format!("could not read file: {:?}", path))?;
-        Ok(BlobExt {
-            blob: Object::from_bytes_new_blob(&data),
-            path,
-        })
-    }
-
-    /// Returns the data stored inside the inner blob object
-    pub fn data(self) -> Rc<[u8]> {
-        if let Object::Blob { data } = self.blob {
-            data
-        } else {
-            panic!("BlobExt did not store a blob")
-        }
-    }
-}
 
 /// Returns the encoded version of the bytes of a blob object, following the next format:
 ///

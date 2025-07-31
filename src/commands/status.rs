@@ -1,6 +1,7 @@
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::{BufReader, Read};
 use std::path::PathBuf;
-use std::rc::Rc;
 
 use anyhow::{bail, Context, Result};
 use colored::Colorize;
@@ -23,7 +24,7 @@ struct FileWithStatus {
 
 struct FileData {
     path: PathBuf,
-    data: Rc<[u8]>,
+    reader: BufReader<File>,
     cache: IndexEntryCache,
 }
 
@@ -72,20 +73,6 @@ fn determine_statuses(
     mut index_data: IndexData,
     working_tree_data: Vec<FileData>,
 ) -> Vec<FileWithStatus> {
-    fn hash_if_not_computed(file_hash: &mut Hash, file_data: &[u8], hash_computed: &mut bool) -> Result<()> {
-        if *hash_computed {
-            return Ok(())
-        }
-
-        let blob = Object::from_bytes_new_blob(file_data);
-        let bytes = blob.as_bytes().context("could not encode as blob object")?;
-
-        *hash_computed = true;
-        *file_hash = Hash::compute(&bytes);
-
-        Ok(())
-    }
-    
     let mut file_statuses = Vec::new();
 
     // Used to determine at the end if a file was new or it was the new name of a previous file
@@ -96,12 +83,29 @@ fn determine_statuses(
     // Used to avoid hashing twice in the same iteration
     let mut hash_computed: bool;
 
-    // Contains the data stored in the index for the current iteration's file
-    let mut index_specific_data = HashCachePair::default();
+    // Helper function
+    fn hash_if_not_computed(file_hash: &mut Hash, file_reader: &mut BufReader<File>, hash_computed: &mut bool) -> Result<()> {
+        if *hash_computed {
+            return Ok(())
+        }
+
+        let mut file_data = Vec::new();
+        file_reader.read_to_end(&mut file_data).context("could not read file contents")?;
+
+        let blob = Object::from_bytes_new_blob(&file_data);
+        let blob_bytes = blob.as_bytes().context("could not encode as blob object")?;
+
+        *hash_computed = true;
+        *file_hash = Hash::compute(&blob_bytes);
+
+        Ok(())
+    }
 
     let mut status: Status;
     let mut stage_status: StageStatus;
-    for FileData { path: file_path, data: file_data, cache: file_cache } in working_tree_data {
+    let mut index_hash: Hash = Hash::default();
+    let mut index_cache: IndexEntryCache;
+    for FileData { path: file_path, reader: mut file_reader, cache: file_cache } in working_tree_data {
         hash_computed = false;
 
         // Notice the use of the `remove` function here instead of the `get` one, this way we can
@@ -109,17 +113,18 @@ fn determine_statuses(
         // files left at the end of the loop are only in the index. Same with `commit_data::remove`
         // below.
         stage_status = if let Some(isd) = index_data.remove(&file_path) {
-            index_specific_data = isd;
+            index_hash = isd.0;
+            index_cache = isd.1;
             // Path in index
-            if index_specific_data.cache.matches_loose(&file_cache) {
+            if index_cache.matches_loose(&file_cache) {
                 // And metadata shows it's unchanged; we have the current version of the file
                 // in the index so it is staged for commit
                 StageStatus::Commit
             } else {
                 // If checking with cache is not successful, we hash the file data and run the
                 // checks with the hash
-                let _ = hash_if_not_computed(&mut file_hash, &file_data, &mut hash_computed).warn_unwrap();
-                if index_specific_data.hash == file_hash {
+                hash_if_not_computed(&mut file_hash, &mut file_reader, &mut hash_computed).warn_unwrap();
+                if index_hash == file_hash {
                     // Index contains path and hash, so this file is being tracked in it's current
                     // state
                     StageStatus::Commit
@@ -134,16 +139,16 @@ fn determine_statuses(
             StageStatus::Untracked
         };
 
-        status = if let Some(commit_specific_hash) = commit_data.remove(&file_path) {
-            if stage_status == StageStatus::Commit && commit_specific_hash == index_specific_data.hash {
+        status = if let Some(commit_hash) = commit_data.remove(&file_path) {
+            if stage_status == StageStatus::Commit && commit_hash == index_hash {
                 // We can only check this for files with the Commit stage status since those files
                 // are stored in the index in it's current version, otherwise we could be checking
                 // for an older version of a file
                 Status::Unchanged
             } else {
                 // Otherwise, we compare the file in the working tree, with the previous commit
-                let _ = hash_if_not_computed(&mut file_hash, &file_data, &mut hash_computed).warn_unwrap();
-                if commit_specific_hash == file_hash {
+                hash_if_not_computed(&mut file_hash, &mut file_reader, &mut hash_computed).warn_unwrap();
+                if commit_hash == file_hash {
                     // Same data than previous commit, the file is unchanged
                     Status::Unchanged
                 } else {
@@ -157,7 +162,7 @@ fn determine_statuses(
                 Status::New
             } else {
                 // File is new, but it is being tracked so we detail it's status
-                let _ = hash_if_not_computed(&mut file_hash, &file_data, &mut hash_computed).warn_unwrap();
+                hash_if_not_computed(&mut file_hash, &mut file_reader, &mut hash_computed).warn_unwrap();
                 possibly_moved_files.insert(file_hash.clone(), (file_path, stage_status));
                 continue;
             }
@@ -171,15 +176,18 @@ fn determine_statuses(
         })
     }
 
-    let mut new_file_data: Option<(PathBuf, StageStatus)>;
+    // Processing deleted or moved files
+
+    let mut moved_file_data: Option<(PathBuf, StageStatus)>;
     for (path, hashc) in index_data.into_iter() {
         // There is no use on checking deleted files on both maps, by removing every file in the
         // index from the commit data we get the files that only appear in the commit.
         commit_data.remove(&path);
 
-        new_file_data = possibly_moved_files.remove(&hashc.hash);
+        index_hash = hashc.0;
+        moved_file_data = possibly_moved_files.remove(&index_hash);
 
-        file_statuses.push(match new_file_data {
+        file_statuses.push(match moved_file_data {
             // New file has the same hash as a deleted file, so the deleted file has just been moved.
             Some((new_path, _)) => FileWithStatus {
                 path: new_path,
@@ -197,9 +205,9 @@ fn determine_statuses(
     // Deleted or moved file does not appear in index (we can assume the new name of a moved file
     // appears in the index) so the changes are staged for commit.
     for (path, hash) in commit_data.into_iter() {
-        new_file_data = possibly_moved_files.remove(&hash);
+        moved_file_data = possibly_moved_files.remove(&hash);
 
-        file_statuses.push(match new_file_data {
+        file_statuses.push(match moved_file_data {
             // New file has the same hash as a deleted file, so the deleted file has just been moved.
             Some((new_path, _)) => FileWithStatus {
                 path: new_path,
@@ -231,23 +239,17 @@ fn read_working_tree_data() -> Result<Vec<FileData>> {
         .context("could not get files in working tree")?;
 
     // Getting data  from working tree
-    let working_tree = fs::object::as_blob_objects(all_files)
+    let working_tree = fs::path::read_bufered(all_files)
         .context("could not read files in working tree as objects")?;
 
-    let mut working_tree_data: Vec<FileData> = Vec::new();
-    for mut o in working_tree {
-        let metadata = std::fs::metadata(&o.path);
-        let cache = if let Ok(m) = metadata {
-            IndexEntryCache::try_from(m).warn_unwrap()
-        } else {
-            IndexEntryCache::default()
-        };
-        working_tree_data.push(FileData {
-            path: std::mem::take(&mut o.path),
-            data: o.data(),
-            cache,
-        });
-    }
+    let working_tree_data = working_tree.into_iter().map(
+        |file|
+        FileData {
+            path: file.path,
+            reader: file.reader,
+            cache: file.cache,
+        }
+    ).collect();
 
     Ok(working_tree_data)
 }
@@ -289,12 +291,7 @@ fn read_commit_data() -> Result<Option<CommitData>> {
     Ok(Some(commit_data))
 }
 
-#[derive(Debug, Default, std::hash::Hash, PartialEq, Eq)]
-struct HashCachePair {
-    hash: Hash,
-    cache: IndexEntryCache,
-}
-type IndexData = HashMap<PathBuf, HashCachePair>;
+type IndexData = HashMap<PathBuf, (Hash, IndexEntryCache)>;
 
 fn read_index_data() -> Result<IndexData> {
     let mut index_data = IndexData::default();
@@ -308,7 +305,7 @@ fn read_index_data() -> Result<IndexData> {
         cache = std::mem::take(&mut ie.cache_data);
         path = ie.into_path();
 
-        index_data.insert(path, HashCachePair { hash, cache });
+        index_data.insert(path, (hash, cache));
     }
 
     Ok(index_data)

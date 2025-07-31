@@ -1,15 +1,15 @@
-use std::str::FromStr;
-
 use anyhow::{Context, Result};
 
+use crate::error::WarnUnwrap;
 use crate::fs::index::read_index_file;
 use crate::fs::object::write_object;
-use crate::hashing::Hash;
 use crate::object::Object;
 use crate::object::commit::{CommitUser, CommitUserKind};
 use crate::object::tree::TreeBuilder;
+use crate::fs;
 
-#[allow(unused)]
+/// Creates a commit object file, a tree from the current index contents and updates the branch
+/// HEAD points to to point at the new commit.
 pub fn commit(message: &str) -> Result<String> {
     // Creating a tree from every file in the index
     let mut tree_builder = TreeBuilder::new();
@@ -23,19 +23,10 @@ pub fn commit(message: &str) -> Result<String> {
         .build_and_write()
         .context("could not write tree object")?;
 
-    // Getting the direct parent
-    let current_branch =
-        crate::fs::get_current_branch_path().context("could not get current branch")?;
     let mut parents = Vec::new();
-    if current_branch.exists() {
-        // If it does not exist then this is the first commit and there is no parents
-        let parent_hash_bytes =
-            std::fs::read(&current_branch).context("could not read current branch reference")?;
-        let parent_hash_str = String::from_utf8_lossy(&parent_hash_bytes);
-        parents.push(
-            Hash::from_str(&parent_hash_str)
-                .context("could not get hash from contents on current branch")?,
-        );
+    let previous_commit = fs::get_last_commit_hash().warn_unwrap();
+    if  let Some(h) = previous_commit {
+        parents.push(h);
     }
 
     let commit = Object::Commit {
@@ -48,6 +39,7 @@ pub fn commit(message: &str) -> Result<String> {
 
     let commit_hash = write_object(&commit).context("could not write commit file")?;
 
+    let current_branch = fs::get_current_branch_path().context("could not get current branch path")?;
     std::fs::write(current_branch, commit_hash.to_string().as_bytes())
         .context("could not update current branch (make it point to the new commit))")?;
 
