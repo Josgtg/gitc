@@ -14,6 +14,6 @@ flate2 = "1.1.2"
 hex = "0.4.3"
 log = "0.4.27"
 sha1 = "0.10.6"
-time = { version = "0.3.41", default-features = false, features = ["parsing", "formatting", "macros"] }
+time = { version = "0.3.41", default-features = false, features = ["parsing", "formatting", "macros", "local-offset"] }
 wild = "2.2.1"
 

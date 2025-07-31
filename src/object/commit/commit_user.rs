@@ -1,4 +1,6 @@
-use std::{fmt::Display, str::FromStr, time::SystemTime};
+use std::time::SystemTime;
+use std::str::FromStr;
+use std::fmt::Display;
 
 use anyhow::{Result, bail};
 use time::UtcOffset;
@@ -15,13 +17,13 @@ pub struct CommitUser {
 }
 
 impl CommitUser {
-    /// Just for debugging from now
+    /// Just for debugging for now
     pub fn default(kind: CommitUserKind) -> Self {
         CommitUser {
             kind,
             identifier: "Josué Torres <josue.ger.torres.gar@gmail.com>".to_owned(),
             timestamp: SystemTime::now(),
-            timezone: UtcOffset::UTC,
+            timezone: UtcOffset::current_local_offset().unwrap_or(UtcOffset::UTC),
         }
     }
 }

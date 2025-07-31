@@ -18,13 +18,18 @@ const PATTERN_EVERY_FILE: &str = ".";
 /// and adds them to the index file.
 pub fn add(files: &[OsString]) -> Result<String> {
     let root_path = Constants::working_tree_root_path();
+    let mut delete_files = false;
 
     let filtered_paths: Vec<PathBuf> = if files[0] == PATTERN_EVERY_FILE {
+        // We only delete files if we are checking every file in the working tree, that way we know
+        // if any files are missing (deleted)
+        delete_files = true;
         fs::read_not_ignored_paths(&root_path).context("could not filter ignored files")?
     } else {
         // We do not check if a file is in .gitignore if it's deliberately added
         let mut filtered_paths = Vec::new();
 
+        // "normalizing" every path
         let mut canonical: PathBuf;
         let mut relative: PathBuf;
         for f in files {
@@ -70,10 +75,9 @@ pub fn add(files: &[OsString]) -> Result<String> {
 
         hash = Hash::compute(bytes.as_ref());
 
-        if paths_already_in_index.contains(&path) {
+        if paths_already_in_index.remove(&path) {
             // file already in index, we delete it since we won't be needing it and it would be
             // useful later (paths left at the end are deleted files)
-            paths_already_in_index.remove(&path);
             if !hashes_already_in_index.contains(&hash) {
                 // ...and has been modified. We remove it and add it as if it was a new file
                 index_builder.remove_index_entry_by_path(&path);
@@ -93,8 +97,10 @@ pub fn add(files: &[OsString]) -> Result<String> {
         index_builder.add_index_entry(index_entry);
     }
 
-    for p in paths_already_in_index {
-        index_builder.remove_index_entry_by_path(&p);
+    if delete_files {
+        for p in paths_already_in_index {
+            index_builder.remove_index_entry_by_path(&p);
+        }
     }
 
     let index = index_builder.build();
