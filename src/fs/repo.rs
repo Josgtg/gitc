@@ -16,7 +16,7 @@ pub fn get_current_branch_path() -> Result<PathBuf> {
     let path_str = String::from_utf8_lossy(&bytes);
 
     let stripped_path_str = path_str
-        .trim_end()  // Important to remove ending newlines
+        .trim_end() // Important to remove ending newlines
         .strip_prefix(Constants::HEAD_CONTENT_HEADER)
         .context("HEAD file had an incorrect header")?;
 

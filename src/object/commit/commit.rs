@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::str::{FromStr, Split};
 use std::time::{Duration, UNIX_EPOCH};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use time::UtcOffset;
 
 use crate::hashing::Hash;
@@ -85,7 +85,6 @@ fn format_data(
     Ok(s)
 }
 
-
 /// Parses a sequence of bytes expecting the format of a commit file, returning a Commit object.
 ///
 /// # Errors
@@ -105,9 +104,7 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
     }
 
     let length_str = String::from_utf8_lossy(&cursor.read_until_checked(NULL_BYTE)?).to_string();
-    let _length: usize = length_str
-        .parse()
-        .context("length was invalid")?;
+    let _length: usize = length_str.parse().context("length was invalid")?;
 
     // parsing the rest of the commit as a string
     let last_position = cursor.position() as usize;
@@ -173,7 +170,6 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Object> {
     /// This function expects `userkind` to not be present in `splitted` (have already been
     /// consumed).
     fn commituser_from_splitted(splitted: Split<char>, kind: CommitUserKind) -> Result<CommitUser> {
-        
         let commuser_vec: Vec<&str> = splitted.collect();
         let word_amount = commuser_vec.len();
 

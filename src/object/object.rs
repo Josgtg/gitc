@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::io::Cursor;
 use std::rc::Rc;
 
@@ -11,7 +11,7 @@ use super::tree::TreeEntry;
 
 use super::commit;
 use super::tree;
-use super::{blob, NULL_BYTE, SPACE_BYTE};
+use super::{NULL_BYTE, SPACE_BYTE, blob};
 
 /// Represents the different type of objects there can be: Blobs, Commits and Trees, with methods
 /// for byte encoding and decoding.

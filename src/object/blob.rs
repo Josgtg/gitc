@@ -1,7 +1,7 @@
 use std::io::{Cursor, Read};
 use std::rc::Rc;
 
-use anyhow::{bail, Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 
 use crate::utils::cursor::EasyRead;
 

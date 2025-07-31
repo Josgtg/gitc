@@ -63,9 +63,13 @@ pub fn write_to_object_dir(bytes: &[u8], hash: &Hash) -> Result<()> {
     let compressed = utils::zlib::compress(bytes).context("could not compress object data")?;
 
     let mut file = std::fs::File::create(&file_path).context("could not create object file")?;
-    let mut permissions = file.metadata().context("could not get file metadata")?.permissions();
+    let mut permissions = file
+        .metadata()
+        .context("could not get file metadata")?
+        .permissions();
     permissions.set_readonly(true);
-    file.set_permissions(permissions).context("could not set file permissions")?;
+    file.set_permissions(permissions)
+        .context("could not set file permissions")?;
 
     file.write_all(&compressed)
         .context(format!("could not write to object file: {:?}", file_path))?;

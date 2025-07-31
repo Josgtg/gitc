@@ -41,7 +41,9 @@ impl BuferedFile {
     /// `IndexEntryCache` value.
     pub fn try_from_path(path: PathBuf) -> Result<Self> {
         let file = std::fs::File::open(&path).context(format!("could not open file {:?}", path))?;
-        let metadata = file.metadata().context(format!("could not get file metadata {:?}", path));
+        let metadata = file
+            .metadata()
+            .context(format!("could not get file metadata {:?}", path));
         Ok(Self {
             path,
             reader: BufReader::new(file),
@@ -51,7 +53,7 @@ impl BuferedFile {
                     log::warn!("{:?}", e);
                     IndexEntryCache::default()
                 }
-            }
+            },
         })
     }
 }
@@ -63,9 +65,7 @@ impl BuferedFile {
 pub fn read_bufered(files: Vec<PathBuf>) -> Result<Vec<BuferedFile>> {
     let mut bufered = Vec::with_capacity(files.len());
     for p in files {
-        bufered.push(
-            BuferedFile::try_from_path(p).context("could not create bufered file")?
-        );
+        bufered.push(BuferedFile::try_from_path(p).context("could not create bufered file")?);
     }
 
     Ok(bufered)
@@ -81,7 +81,6 @@ pub fn read_not_ignored_paths(path: &Path) -> Result<Vec<PathBuf>> {
     let all_paths = read_all_dir_paths(path).context("could not read root directory entries")?;
     crate::gitignore::not_in_gitignore(path, all_paths)
 }
-
 
 // Tests
 

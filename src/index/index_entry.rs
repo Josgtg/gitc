@@ -10,9 +10,9 @@ use std::time::UNIX_EPOCH;
 use anyhow::{Context, Result, bail};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::error::WarnUnwrap;
 use crate::Constants;
 use crate::byteable::Byteable;
+use crate::error::WarnUnwrap;
 use crate::hashing::Hash;
 use crate::utils::path::relative_path;
 
@@ -34,13 +34,12 @@ pub struct IndexEntryCache {
 }
 
 impl IndexEntryCache {
-
     /// Returns `true` if the fields `modification_time_sec`, `modification_time_nsec` and
     /// `file_size` are equal between the two structs.
     pub fn matches_loose(&self, other: &IndexEntryCache) -> bool {
-        self.modification_time_sec == other.modification_time_sec && 
-        self.modification_time_nsec == other.modification_time_nsec &&
-        self.file_size == other.file_size
+        self.modification_time_sec == other.modification_time_sec
+            && self.modification_time_nsec == other.modification_time_nsec
+            && self.file_size == other.file_size
     }
 }
 

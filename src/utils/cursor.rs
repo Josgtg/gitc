@@ -1,7 +1,7 @@
-use std::io::Cursor;
 use std::io::BufRead;
+use std::io::Cursor;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
 pub trait EasyRead {
     fn read_until_checked(&mut self, byte: u8) -> Result<Vec<u8>>;

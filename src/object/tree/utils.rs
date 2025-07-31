@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
 use crate::fs;
 use crate::hashing::Hash;
@@ -17,7 +17,9 @@ pub fn get_all_tree_entries(entries: Vec<TreeEntry>) -> Result<Vec<TreeEntry>> {
     let mut paths = Vec::with_capacity(entries.len());
     for e in entries {
         if e.path.is_dir() {
-            paths.extend(get_subtree(&e.path, e.hash.clone()).context("could not get subtree paths")?);
+            paths.extend(
+                get_subtree(&e.path, e.hash.clone()).context("could not get subtree paths")?,
+            );
         } else {
             paths.push(e);
         }

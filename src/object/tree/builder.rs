@@ -393,7 +393,6 @@ mod tests {
 
         assert_eq!(result.path, PathBuf::new());
 
-
         // Check that root tree has entries for both the file and the subtree
         match result.tree {
             Object::Tree { entries } => {

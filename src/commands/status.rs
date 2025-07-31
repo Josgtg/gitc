@@ -3,18 +3,18 @@ use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::PathBuf;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use colored::Colorize;
 
+use crate::Constants;
 use crate::byteable::Byteable;
 use crate::error::WarnUnwrap;
 use crate::fs;
 use crate::hashing::Hash;
 use crate::index::IndexEntryCache;
 use crate::object;
-use crate::object::tree::TreeEntry;
 use crate::object::Object;
-use crate::Constants;
+use crate::object::tree::TreeEntry;
 
 struct FileWithStatus {
     path: PathBuf,
@@ -84,13 +84,19 @@ fn determine_statuses(
     let mut hash_computed: bool;
 
     // Helper function
-    fn hash_if_not_computed(file_hash: &mut Hash, file_reader: &mut BufReader<File>, hash_computed: &mut bool) -> Result<()> {
+    fn hash_if_not_computed(
+        file_hash: &mut Hash,
+        file_reader: &mut BufReader<File>,
+        hash_computed: &mut bool,
+    ) -> Result<()> {
         if *hash_computed {
-            return Ok(())
+            return Ok(());
         }
 
         let mut file_data = Vec::new();
-        file_reader.read_to_end(&mut file_data).context("could not read file contents")?;
+        file_reader
+            .read_to_end(&mut file_data)
+            .context("could not read file contents")?;
 
         let blob = Object::from_bytes_new_blob(&file_data);
         let blob_bytes = blob.as_bytes().context("could not encode as blob object")?;
@@ -105,7 +111,12 @@ fn determine_statuses(
     let mut stage_status: StageStatus;
     let mut index_hash: Hash = Hash::default();
     let mut index_cache: IndexEntryCache;
-    for FileData { path: file_path, reader: mut file_reader, cache: file_cache } in working_tree_data {
+    for FileData {
+        path: file_path,
+        reader: mut file_reader,
+        cache: file_cache,
+    } in working_tree_data
+    {
         hash_computed = false;
 
         // Notice the use of the `remove` function here instead of the `get` one, this way we can
@@ -123,7 +134,8 @@ fn determine_statuses(
             } else {
                 // If checking with cache is not successful, we hash the file data and run the
                 // checks with the hash
-                hash_if_not_computed(&mut file_hash, &mut file_reader, &mut hash_computed).warn_unwrap();
+                hash_if_not_computed(&mut file_hash, &mut file_reader, &mut hash_computed)
+                    .warn_unwrap();
                 if index_hash == file_hash {
                     // Index contains path and hash, so this file is being tracked in it's current
                     // state
@@ -147,7 +159,8 @@ fn determine_statuses(
                 Status::Unchanged
             } else {
                 // Otherwise, we compare the file in the working tree, with the previous commit
-                hash_if_not_computed(&mut file_hash, &mut file_reader, &mut hash_computed).warn_unwrap();
+                hash_if_not_computed(&mut file_hash, &mut file_reader, &mut hash_computed)
+                    .warn_unwrap();
                 if commit_hash == file_hash {
                     // Same data than previous commit, the file is unchanged
                     Status::Unchanged
@@ -162,7 +175,8 @@ fn determine_statuses(
                 Status::New
             } else {
                 // File is new, but it is being tracked so we detail it's status
-                hash_if_not_computed(&mut file_hash, &mut file_reader, &mut hash_computed).warn_unwrap();
+                hash_if_not_computed(&mut file_hash, &mut file_reader, &mut hash_computed)
+                    .warn_unwrap();
                 possibly_moved_files.insert(file_hash.clone(), (file_path, stage_status));
                 continue;
             }
@@ -242,14 +256,14 @@ fn read_working_tree_data() -> Result<Vec<FileData>> {
     let working_tree = fs::path::read_bufered(all_files)
         .context("could not read files in working tree as objects")?;
 
-    let working_tree_data = working_tree.into_iter().map(
-        |file|
-        FileData {
+    let working_tree_data = working_tree
+        .into_iter()
+        .map(|file| FileData {
             path: file.path,
             reader: file.reader,
             cache: file.cache,
-        }
-    ).collect();
+        })
+        .collect();
 
     Ok(working_tree_data)
 }

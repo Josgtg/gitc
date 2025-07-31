@@ -1,12 +1,12 @@
 use anyhow::{Context, Result};
 
 use crate::error::WarnUnwrap;
+use crate::fs;
 use crate::fs::index::read_index_file;
 use crate::fs::object::write_object;
 use crate::object::Object;
 use crate::object::commit::{CommitUser, CommitUserKind};
 use crate::object::tree::TreeBuilder;
-use crate::fs;
 
 /// Creates a commit object file, a tree from the current index contents and updates the branch
 /// HEAD points to to point at the new commit.
@@ -25,7 +25,7 @@ pub fn commit(message: &str) -> Result<String> {
 
     let mut parents = Vec::new();
     let previous_commit = fs::get_last_commit_hash().warn_unwrap();
-    if  let Some(h) = previous_commit {
+    if let Some(h) = previous_commit {
         parents.push(h);
     }
 
@@ -39,7 +39,8 @@ pub fn commit(message: &str) -> Result<String> {
 
     let commit_hash = write_object(&commit).context("could not write commit file")?;
 
-    let current_branch = fs::get_current_branch_path().context("could not get current branch path")?;
+    let current_branch =
+        fs::get_current_branch_path().context("could not get current branch path")?;
     std::fs::write(current_branch, commit_hash.to_string().as_bytes())
         .context("could not update current branch (make it point to the new commit))")?;
 

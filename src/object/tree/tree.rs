@@ -5,9 +5,9 @@ use std::os::unix::ffi::OsStringExt;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
-use crate::hashing::{Hash, HASH_BYTE_LEN};
+use crate::hashing::{HASH_BYTE_LEN, Hash};
 use crate::object::Object;
 use crate::utils::cursor::EasyRead;
 
@@ -28,7 +28,7 @@ impl Display for TreeEntry {
         f.write_fmt(format_args!(
             "{}\t{}\t{}\t{}",
             self.mode,
-           if self.path.is_dir() {
+            if self.path.is_dir() {
                 Object::TREE_STRING
             } else {
                 Object::BLOB_STRING
@@ -347,10 +347,12 @@ mod tests {
         let result = from_bytes(input);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("object is not a tree"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("object is not a tree")
+        );
     }
 
     #[test]
@@ -377,10 +379,12 @@ mod tests {
         let result = from_bytes(input);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("could not read data object lenght as a number"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("could not read data object lenght as a number")
+        );
     }
 
     #[test]
@@ -422,10 +426,12 @@ mod tests {
         let result = from_bytes(input);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("could not read tree entry hash"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("could not read tree entry hash")
+        );
     }
 
     #[test]
@@ -437,10 +443,12 @@ mod tests {
         let result = from_bytes(&input);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("could not get mode from bytes read"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("could not get mode from bytes read")
+        );
     }
 
     #[test]

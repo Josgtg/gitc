@@ -48,7 +48,10 @@ pub fn read_gitignore(path: &Path) -> Result<HashSet<PathBuf>> {
 /// # Errors
 ///
 /// This function can fail if the .gitignore file could not be read.
-pub fn not_in_gitignore(path_to_look: &Path, paths_to_filter: Vec<PathBuf>) -> Result<Vec<PathBuf>> {
+pub fn not_in_gitignore(
+    path_to_look: &Path,
+    paths_to_filter: Vec<PathBuf>,
+) -> Result<Vec<PathBuf>> {
     // Always add .gitignore despite it being hidden
     let always_add: HashSet<PathBuf> =
         HashSet::from([PathBuf::from(Constants::GITIGNORE_FILE_NAME)]);

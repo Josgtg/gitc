@@ -7,13 +7,13 @@ use std::rc::Rc;
 
 use anyhow::{Context, Result};
 
+use crate::Constants;
 use crate::byteable::Byteable;
+use crate::hashing::Hash;
 use crate::index::IndexEntryCache;
+use crate::index::{IndexEntry, builder::IndexBuilder};
 use crate::object::Object;
 use crate::{fs, utils};
-use crate::hashing::Hash;
-use crate::index::{builder::IndexBuilder, IndexEntry};
-use crate::Constants;
 
 const PATTERN_EVERY_FILE: &str = ".";
 
@@ -38,7 +38,9 @@ pub fn add(files: &[OsString]) -> Result<String> {
         let mut relative: PathBuf;
         for f in files {
             // normalizing all paths
-            canonical = PathBuf::from(f).canonicalize().context("could not canonicalize path")?;
+            canonical = PathBuf::from(f)
+                .canonicalize()
+                .context("could not canonicalize path")?;
             relative = utils::path::relative_path(&canonical, &root_path).unwrap_or(canonical);
             filtered_paths.push(relative);
         }
@@ -47,7 +49,7 @@ pub fn add(files: &[OsString]) -> Result<String> {
     };
 
     if filtered_paths.is_empty() {
-        return Ok("There were no files to add\n".into())
+        return Ok("There were no files to add\n".into());
     }
 
     // reading all files as blob objects
@@ -61,14 +63,16 @@ pub fn add(files: &[OsString]) -> Result<String> {
     for ie in previous_index.entries() {
         index_data.insert(
             ie.path().to_owned(),
-            (ie.object_hash(), ie.cache_data.clone())
+            (ie.object_hash(), ie.cache_data.clone()),
         );
     }
 
     fn hash_from_reader(reader: &mut BufReader<File>) -> Result<(Rc<[u8]>, Hash)> {
         // reading bytes from the file one at a time
         let mut file_bytes = Vec::new();
-        reader.read_to_end(&mut file_bytes).context("could not read file contents")?;
+        reader
+            .read_to_end(&mut file_bytes)
+            .context("could not read file contents")?;
 
         let blob = Object::from_bytes_new_blob(&file_bytes);
 
@@ -98,13 +102,14 @@ pub fn add(files: &[OsString]) -> Result<String> {
                 // we can assume the file is unchanged
                 continue;
             } else {
-                (bytes, hash) = hash_from_reader(&mut o.reader).context(format!("could not hash file: {:?}", o.path))?;
+                (bytes, hash) = hash_from_reader(&mut o.reader)
+                    .context(format!("could not hash file: {:?}", o.path))?;
                 hash_computed = true;
 
                 if index_hash == hash {
                     // ...and has been modified. We remove it and add it as if it was a new file
                     index_builder.remove_index_entry_by_path(&o.path);
-                } else { 
+                } else {
                     // ...and is unchanged, we just ignore it
                     continue;
                 }
@@ -112,9 +117,10 @@ pub fn add(files: &[OsString]) -> Result<String> {
         }
 
         // if the `if` above is not triggered, this is a new file (or modified, but we handle it as new)
-        
+
         if !hash_computed {
-            (bytes, hash) = hash_from_reader(&mut o.reader).context(format!("could not hash file: {:?}", o.path))?;
+            (bytes, hash) = hash_from_reader(&mut o.reader)
+                .context(format!("could not hash file: {:?}", o.path))?;
         }
 
         index_entry = IndexEntry::try_from_file(&o.path, hash.clone()).context(format!(

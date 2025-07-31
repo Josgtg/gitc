@@ -26,13 +26,12 @@ pub fn reset(command: Option<&ResetCommand>) -> Result<String> {
                 // there is no previous commit, so we can just reset the index
                 fs::index::write_index_file(Index::default())
                     .context("could not write index file")?;
-                return Ok("cleaned index file\n".into())
+                return Ok("cleaned index file\n".into());
             }
             reset_to_commit(false, last_commit.expect("hash should never be None"))
         }
     }
 }
-
 
 #[allow(unused)]
 fn reset_files(files: &[OsString]) -> Result<String> {

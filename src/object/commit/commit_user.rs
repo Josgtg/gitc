@@ -1,6 +1,6 @@
-use std::time::SystemTime;
-use std::str::FromStr;
 use std::fmt::Display;
+use std::str::FromStr;
+use std::time::SystemTime;
 
 use anyhow::{Result, bail};
 use time::UtcOffset;
