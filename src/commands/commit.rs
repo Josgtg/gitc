@@ -1,6 +1,5 @@
 use anyhow::{Context, Result};
 
-use crate::error::WarnUnwrap;
 use crate::fs;
 use crate::fs::index::read_index_file;
 use crate::fs::object::write_object;
@@ -24,7 +23,7 @@ pub fn commit(message: &str) -> Result<String> {
         .context("could not write tree object")?;
 
     let mut parents = Vec::new();
-    let previous_commit = fs::get_last_commit_hash().warn_unwrap();
+    let previous_commit = fs::get_last_commit_hash().context("could not get last commit hash")?;
     if let Some(h) = previous_commit {
         parents.push(h);
     }

@@ -7,14 +7,14 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::time::UNIX_EPOCH;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 
-use crate::Constants;
 use crate::byteable::Byteable;
 use crate::error::WarnUnwrap;
 use crate::hashing::Hash;
 use crate::utils::path::relative_path;
+use crate::Constants;
 
 use super::FileStage;
 
@@ -41,12 +41,8 @@ impl IndexEntryCache {
             && self.modification_time_nsec == other.modification_time_nsec
             && self.file_size == other.file_size
     }
-}
 
-impl TryFrom<Metadata> for IndexEntryCache {
-    type Error = anyhow::Error;
-
-    fn try_from(metadata: Metadata) -> Result<Self> {
+    pub fn try_from_metadata(metadata: Metadata) -> Result<Self> {
         Ok(Self {
             creation_time_sec: metadata.created()?.duration_since(UNIX_EPOCH)?.as_secs() as u32,
             creation_time_nsec: metadata
@@ -65,6 +61,14 @@ impl TryFrom<Metadata> for IndexEntryCache {
             gid: metadata.gid(),
             file_size: metadata.size() as u32,
         })
+    }
+}
+
+impl TryFrom<Metadata> for IndexEntryCache {
+    type Error = anyhow::Error;
+
+    fn try_from(metadata: Metadata) -> std::result::Result<Self, Self::Error> {
+        Self::try_from_metadata(metadata)
     }
 }
 
@@ -118,7 +122,9 @@ impl IndexEntry {
             .context("could not get file metadata when encoding index entry")?;
         Ok(IndexEntry {
             mode: metadata.mode(),
-            cache_data: IndexEntryCache::try_from(metadata).warn_unwrap(),
+            cache_data: IndexEntryCache::try_from_metadata(metadata)
+                .context("could not get cache data from metadata")
+                .warn_unwrap_or_default(),
             object_hash,
             flags: IndexEntry::default_flags(file_path.as_os_str().len()),
             path: relative_path(file_path, &Constants::working_tree_root_path())

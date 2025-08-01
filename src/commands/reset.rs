@@ -15,6 +15,7 @@ pub fn reset(command: Option<&ResetCommand>) -> Result<String> {
             ResetCommand::Commit { hard, commit_hash } => {
                 let hash = Hash::from_str(&commit_hash)
                     .context("hash provided was not a valid hexadecimal hash string")?;
+
                 reset_to_commit(*hard, hash)
             }
         },
@@ -22,13 +23,16 @@ pub fn reset(command: Option<&ResetCommand>) -> Result<String> {
             // the reset command, without arguments, resets to the previous commit
             let last_commit =
                 fs::get_last_commit_hash().context("could not get las commit hash")?;
-            if last_commit.is_none() {
-                // there is no previous commit, so we can just reset the index
-                fs::index::write_index_file(Index::default())
-                    .context("could not write index file")?;
-                return Ok("cleaned index file\n".into());
+            match last_commit {
+                Some(hash) => reset_to_commit(false, hash),
+                None => {
+                    // there is no previous commit, so we can just reset the index
+                    fs::index::write_index_file(Index::default())
+                        .context("could not write index file")?;
+
+                    Ok("cleaned index file\n".into())
+                }
             }
-            reset_to_commit(false, last_commit.expect("hash should never be None"))
         }
     }
 }

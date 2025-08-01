@@ -7,12 +7,12 @@ use std::rc::Rc;
 
 use anyhow::{Context, Result};
 
-use crate::Constants;
 use crate::byteable::Byteable;
 use crate::hashing::Hash;
 use crate::index::IndexEntryCache;
-use crate::index::{IndexEntry, builder::IndexBuilder};
+use crate::index::{builder::IndexBuilder, IndexEntry};
 use crate::object::Object;
+use crate::Constants;
 use crate::{fs, utils};
 
 const PATTERN_EVERY_FILE: &str = ".";
@@ -28,21 +28,25 @@ pub fn add(files: &[OsString]) -> Result<String> {
         // We only delete files if we are checking every file in the working tree, that way we know
         // if any files are missing (deleted)
         delete_files = true;
-        fs::read_not_ignored_paths(&root_path).context("could not filter ignored files")?
+
+        let all_absolute =
+            fs::get_all_paths(&root_path).context("could not filter ignored files")?;
+
+        // Returning the paths as relative to working tree root
+        all_absolute
+            .into_iter()
+            .map(|path| utils::path::relative_path(&path, &root_path).unwrap_or(path))
+            .collect()
     } else {
         // We do not check if a file is in .gitignore if it's deliberately added
         let mut filtered_paths = Vec::new();
 
         // "normalizing" every path
-        let mut canonical: PathBuf;
-        let mut relative: PathBuf;
         for f in files {
-            // normalizing all paths
-            canonical = PathBuf::from(f)
-                .canonicalize()
-                .context("could not canonicalize path")?;
-            relative = utils::path::relative_path(&canonical, &root_path).unwrap_or(canonical);
-            filtered_paths.push(relative);
+            filtered_paths.push(
+                utils::path::normalize_path_relative(PathBuf::from(f), &root_path)
+                    .context("could not normalize path")?,
+            );
         }
 
         filtered_paths

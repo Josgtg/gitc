@@ -1,6 +1,8 @@
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
+use anyhow::{Result, Context};
+
 /// Removes the first component from a path.
 ///
 /// # Returns
@@ -62,4 +64,17 @@ pub fn clean_path(path: PathBuf, absolute: bool) -> PathBuf {
     };
 
     cleaned
+}
+
+/// Returns the canonical, relative to `base` version of `path`.
+///
+/// # Errors
+///
+/// This function will fail if `path` could not be canonicalized.
+pub fn normalize_path_relative(path: PathBuf, base: &Path) -> Result<PathBuf> {
+    let canonical = path
+        .canonicalize()
+        .context(format!("could not canonicalize path {:?}", path))?;
+
+    Ok(relative_path(&canonical, base).unwrap_or(canonical))
 }

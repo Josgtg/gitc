@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
+use crate::error::WarnUnwrap;
 use crate::Constants;
 
 use crate::utils::path::{clean_path, relative_path};
@@ -23,7 +24,12 @@ pub fn read_gitignore(path: &Path) -> Result<HashSet<PathBuf>> {
     set.insert(PathBuf::from(Constants::REPOSITORY_FOLDER_NAME));
 
     let gitignore_path = path.join(Constants::GITIGNORE_FILE_NAME);
-    if !std::fs::exists(&gitignore_path).context("could not check gitignore file existance")? {
+
+    let gitignore_exists = std::fs::exists(&gitignore_path)
+        .context("could not verify existance of gitignore file")
+        .warn_unwrap_or_default();
+
+    if !gitignore_exists {
         return Ok(set);
     }
 
@@ -41,13 +47,14 @@ pub fn read_gitignore(path: &Path) -> Result<HashSet<PathBuf>> {
 
 /// Returns a list of files not in the .gitignore file (filters `paths_to_filter`).
 ///
-/// This function looks for a .gitignore file directly inside of `path`.
+/// This function looks for a .gitignore file directly inside of `path_to_look`.
 ///
-/// It also checks every path in `paths_to_filter` as if it was relative to `path`.
+/// It also checks every path in `paths_to_filter` as if it was relative to `path_to_look`.
 ///
 /// # Errors
 ///
 /// This function can fail if the .gitignore file could not be read.
+#[allow(unused)]
 pub fn not_in_gitignore(
     path_to_look: &Path,
     paths_to_filter: Vec<PathBuf>,
