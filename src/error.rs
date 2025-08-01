@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 pub trait WarnUnwrap<T, E> {
+    fn warn(self) -> Self;
     fn warn_unwrap_or_default(self) -> T where T: Default;
     #[allow(unused)]
     fn warn_unwrap_or(self, default: T) -> T;
@@ -9,6 +10,13 @@ pub trait WarnUnwrap<T, E> {
 }
 
 impl<T, E: Debug> WarnUnwrap<T, E> for Result<T, E> {
+    /// Logs if `self` is the error variant, consuming the result and returning it immediately.
+    fn warn(self) -> Self {
+        if let Err(error) = &self {
+            log::warn!("{:?}", error);
+        }
+        self
+    }
 
     /// Tries to unwrap a `Result`, if it was the `Err` variant, logs the error and returns the default
     /// value of the type `T`.

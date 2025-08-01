@@ -5,9 +5,64 @@ use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
 use crate::error::WarnUnwrap;
-use crate::Constants;
+use crate::{utils, Constants};
 
-use crate::utils::path::{clean_path, relative_path};
+use crate::utils::path::relative_path;
+
+/// Struct intended to be used for any operations related to the .gitignore file.
+///
+/// It stores a `HashSet` containing the paths to ignore. It's important to know this paths are all
+/// *canonicalized paths*.
+pub struct Gitignore {
+    files: HashSet<PathBuf>,
+}
+impl Gitignore {
+    /// Tries to add a file to the list of ignored files.
+    ///
+    /// # Errors
+    ///
+    /// This function will fail if the file did not exist or could not be canonicalized.
+    pub fn add_file(&mut self, path: PathBuf) -> Result<()> {
+        let mut cleaned = utils::path::clean_path(&path, false);
+
+        let canon = match cleaned.canonicalize() {
+            Ok(p) => p,
+            Err(_) => {
+                // failed to canonicalize as absolute path, we will try as relative
+                cleaned = utils::path::clean_path(&path, true);
+                cleaned
+                    .canonicalize()
+                    .context(format!("could not canonicalize path {:?}", cleaned))?
+            }
+        };
+
+        self.files.insert(canon);
+        Ok(())
+    }
+
+    /// Will check if a canonicalized version of `path` is included in the ignored files.
+    pub fn contains(&self, path: &Path) -> bool {
+        let canon = path.canonicalize().context(format!(
+            "could not canonicalize path when checking if gitignore contained path {:?}",
+            path
+        )).warn();
+
+        match canon {
+            Ok(c) => self.files.contains(&c),
+            Err(_) => false,
+        }
+    }
+}
+impl Default for Gitignore {
+    /// This version of the `Gitignore` struct always has the .git folder as ignored path.
+    fn default() -> Self {
+        let mut gitignore = Self {
+            files: HashSet::new(),
+        };
+        let _ = gitignore.add_file(Constants::repository_path()).warn();
+        gitignore
+    }
+}
 
 /// Reads a .gitignore file inside of `path`, returning a HashSet including all the files listed (read by line).
 ///
@@ -18,10 +73,8 @@ use crate::utils::path::{clean_path, relative_path};
 /// # Errors
 ///
 /// This function will fail if the .gitignore file could not been opened.
-pub fn read_gitignore(path: &Path) -> Result<HashSet<PathBuf>> {
-    let mut set: HashSet<PathBuf> = HashSet::new();
-    // always adding repository path as a path to ignore no matter what
-    set.insert(PathBuf::from(Constants::REPOSITORY_FOLDER_NAME));
+pub fn read_gitignore(path: &Path) -> Result<Gitignore> {
+    let mut gitignore = Gitignore::default();
 
     let gitignore_path = path.join(Constants::GITIGNORE_FILE_NAME);
 
@@ -30,19 +83,23 @@ pub fn read_gitignore(path: &Path) -> Result<HashSet<PathBuf>> {
         .warn_unwrap_or_default();
 
     if !gitignore_exists {
-        return Ok(set);
+        return Ok(gitignore);
     }
 
-    let gitignore = File::open(gitignore_path).context("could not open gitignore file")?;
+    let gitignore_file = File::open(gitignore_path).context("could not open gitignore file")?;
 
-    let reader = BufReader::new(gitignore);
-    let mut path: PathBuf;
+    let reader = BufReader::new(gitignore_file);
+    let mut path;
+    let _: Gitignore;
     for line in reader.lines().map_while(Result::ok) {
         path = PathBuf::from(line);
-        set.insert(clean_path(path, false));
+        _ = gitignore
+            .add_file(path)
+            .context("could not add file to gitignore")
+            .warn();
     }
 
-    Ok(set)
+    Ok(gitignore)
 }
 
 /// Returns a list of files not in the .gitignore file (filters `paths_to_filter`).

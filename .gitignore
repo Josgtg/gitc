@@ -1,5 +1,5 @@
-/target
-/session.vim
-/test-repo
-/misc
+target/
+session.vim
+test-repo/
+misc/
 .env

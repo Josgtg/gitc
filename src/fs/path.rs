@@ -8,7 +8,6 @@ use anyhow::{Context, Result};
 use crate::error::WarnUnwrap;
 use crate::gitignore;
 use crate::index::IndexEntryCache;
-use crate::utils;
 
 /// Struct that represents a file which content is buffered.
 ///
@@ -89,12 +88,10 @@ pub fn get_all_paths(root: &Path) -> Result<Vec<PathBuf>> {
     let root_dir = std::fs::read_dir(root).context("could not get root directories")?;
 
     let mut path: PathBuf;
-    let mut relative: PathBuf;
     for direntry in root_dir {
         path = direntry.context("could not get dir entry")?.path();
 
-        relative = utils::path::relative_path(&path, root).unwrap_or(path.clone());
-        if ignored.contains(&relative) {
+        if ignored.contains(&path) {
             continue;
         }
 

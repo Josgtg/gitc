@@ -2,6 +2,7 @@ use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Result, Context};
+use path_clean::PathClean;
 
 /// Removes the first component from a path.
 ///
@@ -54,14 +55,11 @@ pub fn format_path(path: &Path) -> OsString {
 /// Returns the path without useless characters.
 ///
 /// If the `absolute` flag is set, it will not strip the forward slash from the path.
-pub fn clean_path(path: PathBuf, absolute: bool) -> PathBuf {
-    let cleaned: PathBuf = if path.starts_with("./") {
-        path.strip_prefix("./").unwrap().into()
-    } else if path.starts_with("/") && !absolute {
-        path.strip_prefix("/").unwrap().into()
-    } else {
-        path
-    };
+pub fn clean_path(path: &Path, relative: bool) -> PathBuf {
+    let mut cleaned = path.clean();
+    if relative && cleaned.starts_with("/") {
+        cleaned = cleaned.strip_prefix("/").unwrap_or(&cleaned).into();
+    }
 
     cleaned
 }
